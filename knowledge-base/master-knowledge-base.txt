@@ -1,0 +1,267 @@
+================================================================================
+WORKOUT ASSISTANT KNOWLEDGE BASE - MASTER FILE
+================================================================================
+Last updated: 2026-04-28
+This is the single source of truth. Edit THIS file, then regenerate the
+Groq and HuggingFace versions from it.
+
+The AI assistant identifies as: "(username)'s personal workout assistant"
+================================================================================
+
+
+## SECTION 1: THE TRAINING HIERARCHY (PRIORITY LADDER)
+
+Training variables are NOT all equally important. They follow a hierarchy
+from most to least important:
+
+### 1.1 Foundation: Safety & Enjoyment → Sustainability
+- Your routine MUST be safe (proper form, appropriate loads) and enjoyable
+  enough that you'll stick with it long-term.
+- Sustainability is the #1 predictor of results. The best program is one
+  you'll actually follow for months and years.
+- If you hate your program, switch to something you like. Adherence beats
+  optimization every time.
+
+### 1.2 Effort (Training Intensity of Effort)
+- You must train hard enough to stimulate growth.
+- On most working sets, stay within 2-3 reps of failure (RPE 7-9).
+- Going to absolute failure every set is NOT required and may impair
+  recovery. Save true failure sets for the last set of an exercise.
+- If you're coasting through sets with 5+ reps left in the tank, you
+  won't see meaningful progress.
+
+### 1.3 Progressive Overload & Prioritization
+- PROGRESSIVE OVERLOAD is the #1 driver of long-term muscle growth.
+- It means doing MORE over time: more weight, more reps, or more sets.
+- Examples:
+  * Week 1: Bench 135 lbs x 10 reps → Week 2: Bench 135 lbs x 11 reps
+  * Week 1: Bench 135 lbs x 10 reps → Week 2: Bench 140 lbs x 10 reps
+- Track your lifts in a logbook or app so you can see if you're progressing.
+- PRIORITIZATION: Train your weakest or most important body parts first
+  in the session/week when you're freshest.
+- "Muscle confusion" is a myth. You don't need to change exercises constantly.
+  Muscles respond to progressive tension, not novelty.
+
+### 1.4 Volume (How Much Work)
+- Volume = total number of hard sets per muscle group per week.
+- Research supports roughly 10-20 hard sets per muscle group per week.
+- Beginners: start near 10 sets/week and gradually increase.
+- Advanced lifters: may need 15-20+ sets/week.
+- Key volume concepts:
+  * MEV (Minimum Effective Volume): least amount needed to grow (~6-8 sets)
+  * MAV (Maximum Adaptive Volume): the "sweet spot" (~10-15 sets)
+  * MRV (Maximum Recoverable Volume): most you can do and still recover (~20-25 sets)
+- Going beyond MRV leads to overtraining and regression.
+- Volume has diminishing returns — doubling your sets does NOT double your gains.
+
+### 1.5 Frequency (How Often)
+- Training each body part at least 2x per week is better than 1x per week
+  (even when total weekly volume is the same).
+- Whether 3x+ per week is better than 2x is unclear from current research.
+- Higher frequency lets you spread volume across sessions, keeping each
+  session shorter and each set higher quality.
+
+### 1.6 Rep Ranges & Load
+- Muscle growth occurs across a WIDE range of reps (as low as 3, as high as 30+).
+- The old "8-12 hypertrophy zone" is not the only effective range.
+- KEY: You must be close to failure regardless of rep range.
+- Practical recommendations:
+  * Compound lifts: 6-12 reps (builds both strength and size)
+  * Isolation lifts: 10-20 reps (joint-friendly, good pump)
+  * Heavy work (3-6 reps): include some for strength development
+  * Light work (15-25 reps): fine for accessories and variety
+- STRENGTH is more specific to heavy loads (1-5 reps). SIZE is less
+  load-dependent.
+
+### 1.7 Exercise Selection
+- Covered in detail in Section 3 below.
+
+### 1.8 Rest Periods
+- Compound exercises: 2-5 minutes rest between sets.
+- Isolation exercises: 1-2 minutes rest between sets.
+- Longer rest → better volume maintenance → more hypertrophy.
+- Short rest (30-60 sec) reduces the weight/reps you can do on subsequent sets.
+- Supersets (pairing opposing muscles) are a great time-saver without
+  sacrificing hypertrophy.
+- Don't rush heavy compounds — quality and safety matter.
+
+### 1.9 Lifting Tempo (Least Important)
+- Moderate tempo works best: roughly 2-6 seconds per rep total.
+- Control the eccentric (lowering): 2-3 seconds.
+- Concentric (lifting): can be explosive, 1-2 seconds.
+- Very slow reps (10+ sec) are NOT superior and reduce volume.
+- Enhanced eccentrics (3-5 sec lowering) can be a useful technique
+  for hypertrophy but are more fatiguing.
+- Don't overthink tempo. Just control the weight and feel the target muscle.
+
+
+## SECTION 2: TRAINING SPLITS
+
+### 2.1 Upper/Lower Split (4 days/week) — Great for Beginners
+  Monday:    Upper body
+  Tuesday:   Lower body
+  Wednesday: Rest
+  Thursday:  Upper body
+  Friday:    Lower body
+  Sat-Sun:   Rest
+  → Each body part trained 2x/week
+
+### 2.2 Push/Pull/Legs (6 days/week) — Intermediate+
+  Day 1: Push (chest, shoulders, triceps)
+  Day 2: Pull (back, biceps, rear delts)
+  Day 3: Legs (quads, hamstrings, glutes, calves)
+  Day 4: Push
+  Day 5: Pull
+  Day 6: Legs
+  Day 7: Rest
+  → Each body part trained 2x/week
+
+### 2.3 Full Body (3 days/week) — Great for Beginners or Time-Limited
+  Mon/Wed/Fri: Train every muscle group each session
+  → Each body part trained 3x/week
+  → Individual sessions are shorter
+  → Split volume across 3-4 sets per muscle per session
+
+
+## SECTION 3: EXERCISE SELECTION BY BODY PART
+
+### 3.1 Principles
+- Compound movements first (multi-joint, heavy)
+- Add isolation work for lagging areas
+- Cover all movement patterns: push, pull, squat, hinge
+- Choose exercises you can perform safely and enjoy
+- Keep main lifts consistent; rotate accessories for variety
+
+### 3.2 Chest
+- Barbell bench press (flat): primary compound — overall chest mass
+- Incline dumbbell/barbell press: upper chest emphasis
+- Cable fly or dumbbell fly: stretch-focused isolation
+- Dips: lower chest emphasis, also hits triceps
+
+### 3.3 Back
+- Barbell row or dumbbell row: horizontal pulling — mid/upper back
+- Pull-ups or lat pulldown: vertical pulling — lats/width
+- Seated cable row: mid-back thickness
+- Face pulls: rear delts + upper back health (do these regularly)
+
+### 3.4 Shoulders
+- Overhead press (barbell or dumbbell): primary compound
+- Lateral raises: CRITICAL for side delts / shoulder width
+- Face pulls or reverse fly: rear delts
+- Front delts usually get enough volume from pressing movements
+
+### 3.5 Legs — Quads
+- Back squat or front squat: primary compound — best overall quad builder
+- Leg press: additional quad volume, easier to load
+- Leg extension: quad isolation
+- Walking lunges: great unilateral exercise
+
+### 3.6 Legs — Hamstrings & Glutes
+- Romanian deadlift (RDL): primary hamstring/glute compound
+  (preferred over conventional deadlift for hypertrophy)
+- Leg curl (seated or lying): ESSENTIAL — squats barely hit hamstrings
+- Hip thrust or glute bridge: glute-focused
+
+### 3.7 Calves
+- Standing calf raise: with a 1-2 second PAUSE at the bottom
+  (dissipate elastic energy — don't bounce)
+- Seated calf raise: targets soleus (actually the bigger calf muscle)
+
+### 3.8 Arms
+- Barbell curl: biceps
+- Hammer curl: brachialis and forearms
+- Tricep pushdown or overhead tricep extension: isolation
+- Close-grip bench press: triceps compound
+- Arms already get significant work from compound pushing/pulling
+
+
+## SECTION 4: NUTRITION FUNDAMENTALS
+
+### 4.1 Calories & Energy Balance
+- To BUILD MUSCLE: eat in a slight caloric surplus (200-500 cal above maintenance)
+- To LOSE FAT: eat in a moderate caloric deficit (300-500 cal below maintenance)
+- Maintenance calories can be estimated using bodyweight x 14-16 (in pounds)
+  as a rough starting point, then adjust based on weight changes over 2-3 weeks.
+- Beginners can often build muscle and lose fat simultaneously ("recomposition"),
+  especially if they have higher body fat.
+
+### 4.2 Protein
+- Most important macronutrient for muscle building.
+- Aim for 0.7-1.0 grams per pound of bodyweight per day (1.6-2.2 g/kg).
+- Spread protein across 3-5 meals per day for optimal muscle protein synthesis.
+- Good sources: chicken, fish, eggs, dairy, legumes, tofu, protein powder.
+- Protein timing around workouts is helpful but not critical — total daily
+  intake matters most.
+
+### 4.3 Carbohydrates
+- Primary fuel source for intense resistance training.
+- Do NOT fear carbs if your goal is muscle building and performance.
+- Aim for 40-55% of total calories from carbs (adjust based on preference).
+- Prioritize complex carbs: oats, rice, potatoes, whole grains, fruits.
+- Having carbs before/after training can improve performance and recovery.
+
+### 4.4 Fats
+- Essential for hormone production (including testosterone).
+- Aim for 20-35% of total calories from fats.
+- Include healthy fats: olive oil, avocados, nuts, fatty fish, eggs.
+- Don't go below 0.3g per pound of bodyweight for hormone health.
+
+### 4.5 Practical Diet Tips
+- Track your food intake for at least a few weeks to learn portion sizes.
+- You don't need to track forever — building awareness is the main goal.
+- Meal prep helps with consistency.
+- No foods are inherently "bad" — it's about overall daily/weekly intake.
+- Flexible dieting (IIFYM) works: hit your protein and calorie targets,
+  fill the rest with foods you enjoy.
+- Stay hydrated: aim for roughly half your bodyweight (lbs) in ounces of water.
+
+
+## SECTION 5: SUPPLEMENTS (EVIDENCE-BASED ONLY)
+
+### 5.1 Worth Taking
+- Creatine monohydrate: 3-5g daily. Most well-researched supplement.
+  Improves strength, power, and muscle growth. Safe long-term.
+- Protein powder (whey/casein/plant): convenient way to hit protein targets.
+  Not magic — real food is fine too.
+- Caffeine: 3-6 mg/kg bodyweight pre-workout. Improves performance and focus.
+- Vitamin D: if deficient (common in northern climates). 1000-2000 IU/day.
+
+### 5.2 Situational / Minor Benefit
+- Beta-alanine: may help endurance in higher rep sets (15+ reps). Causes tingling.
+- Citrulline malate: may improve blood flow and endurance. 6-8g pre-workout.
+- Fish oil (omega-3): if you don't eat fatty fish regularly. General health.
+
+### 5.3 Not Worth Taking (Overhyped)
+- BCAAs: waste of money if you eat enough protein.
+- Testosterone boosters: don't work. Save your money.
+- Fat burners: minimal effect, not worth side effects.
+- Most proprietary blends: underdosed ingredients with fancy marketing.
+
+
+## SECTION 6: RECOVERY & LIFESTYLE
+
+### 6.1 Sleep
+- Aim for 7-9 hours per night. Sleep is when most muscle repair occurs.
+- Poor sleep impairs muscle growth, increases cortisol, and reduces performance.
+- Consistent sleep schedule matters more than total hours.
+
+### 6.2 Stress Management
+- Chronic stress elevates cortisol, which impairs recovery and muscle growth.
+- Find stress management strategies: meditation, walks, hobbies, social time.
+
+### 6.3 Deload Weeks
+- Every 4-8 weeks, reduce training volume or intensity by ~40-50%.
+- Allows accumulated fatigue to dissipate.
+- Come back stronger the following week.
+- Beginners may not need deloads for the first several months.
+
+### 6.4 Warm-Up
+- 5-10 minutes of light cardio to raise body temperature.
+- Dynamic stretching for muscles you're about to train.
+- 1-2 warm-up sets with lighter weight before working sets.
+- Don't skip warm-ups — injury prevention is critical for long-term progress.
+
+
+================================================================================
+END OF MASTER KNOWLEDGE BASE
+================================================================================

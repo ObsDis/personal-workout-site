@@ -1,0 +1,118 @@
+{
+  "metadata": {
+    "version": "1.0",
+    "last_updated": "2026-04-28",
+    "description": "HuggingFace-optimized knowledge base for workout assistant chatbot. Structured as Q&A pairs and chunks for smaller context windows and retrieval-augmented generation.",
+    "assistant_identity": "{{username}}'s personal workout assistant",
+    "usage_note": "Derived from master-knowledge-base.txt. Do not edit directly — regenerate from master."
+  },
+  "system_instruction": "You are {{username}}'s personal workout assistant. You give evidence-based training and nutrition advice. You have access to the user's workout data (logged workouts, splits, history, profile, progress). Use their data to personalize advice. Be direct and specific. Never reference images. Identify as '{{username}}'s personal workout assistant'.",
+  "qa_pairs": [
+    {
+      "q": "How many sets per week should I do per muscle group?",
+      "a": "Research supports 10-20 hard sets per muscle group per week. Beginners should start around 10 sets and increase gradually. More advanced lifters may benefit from 15-20+ sets. Going beyond your Maximum Recoverable Volume leads to overtraining and regression. Volume has diminishing returns."
+    },
+    {
+      "q": "How often should I train each muscle group?",
+      "a": "At least 2 times per week per body part. Research shows 2x/week beats 1x/week even at the same total weekly volume. Whether 3x+ is better than 2x is still unclear. Higher frequency lets you spread volume across sessions for higher quality sets."
+    },
+    {
+      "q": "What rep range is best for building muscle?",
+      "a": "Muscle growth occurs across a wide range: as low as 3 reps to 30+ reps, as long as you're close to failure. The old 8-12 'hypertrophy zone' isn't the only effective range. Practically: do compounds in the 6-12 range, isolation in the 10-20 range, and include some heavy (3-6) and lighter (15-25) work for variety."
+    },
+    {
+      "q": "What is progressive overload and why does it matter?",
+      "a": "Progressive overload means doing more over time: more weight, more reps, or more sets. It's the #1 driver of long-term muscle growth. Example: benching 135 for 10 reps one week, then 135 for 11 reps or 140 for 10 reps the next week. Without progressive overload, you won't optimize your results. Track your lifts to ensure you're progressing."
+    },
+    {
+      "q": "How close to failure should I train?",
+      "a": "Stay within 2-3 reps of failure on most working sets (RPE 7-9). Going to absolute failure every set is NOT required and may impair recovery. Save true failure for the last set of an exercise if at all. If you're leaving 5+ reps in the tank, you're not working hard enough."
+    },
+    {
+      "q": "What's the best training split?",
+      "a": "It depends on your schedule and experience. Upper/Lower (4 days/week) is great for beginners. Push/Pull/Legs (6 days/week) suits intermediates wanting more gym time. Full Body (3 days/week) works well for beginners or people with limited time. All can work — pick one you'll stick to consistently."
+    },
+    {
+      "q": "How long should I rest between sets?",
+      "a": "For compound exercises (squats, bench, rows): 2-5 minutes. For isolation exercises (curls, lateral raises): 1-2 minutes. Longer rest lets you maintain better volume, which drives more hypertrophy. Supersets (pairing opposing muscles) are a great time-saver."
+    },
+    {
+      "q": "Does lifting tempo matter?",
+      "a": "It's the least important training variable. A moderate tempo of 2-6 seconds per rep works well. Control the eccentric (lowering) for 2-3 seconds. The concentric (lifting) can be explosive. Very slow reps (10+ seconds) are not superior and reduce total volume. Just control the weight and focus on the muscle."
+    },
+    {
+      "q": "What are the best exercises for chest?",
+      "a": "Barbell bench press (flat) for overall mass, incline dumbbell/barbell press for upper chest, cable or dumbbell flies for stretch and isolation, and dips for lower chest emphasis."
+    },
+    {
+      "q": "What are the best exercises for back?",
+      "a": "Barbell or dumbbell rows for horizontal pulling and mid/upper back, pull-ups or lat pulldowns for vertical pulling and width, seated cable rows for thickness, and face pulls for rear delts and upper back health."
+    },
+    {
+      "q": "What are the best exercises for shoulders?",
+      "a": "Overhead press (barbell or dumbbell) as the primary compound, lateral raises for side delts (critical for shoulder width), and face pulls or reverse flies for rear delts. Front delts usually get enough work from pressing movements."
+    },
+    {
+      "q": "What are the best exercises for legs?",
+      "a": "Quads: back squat, leg press, leg extension, walking lunges. Hamstrings: Romanian deadlift (preferred over conventional for hypertrophy), leg curls (essential — squats barely hit hamstrings). Calves: standing calf raise with a pause at the bottom, seated calf raise for the soleus."
+    },
+    {
+      "q": "How much protein do I need?",
+      "a": "Aim for 0.7-1.0 grams per pound of bodyweight per day (1.6-2.2 g/kg). Spread across 3-5 meals for optimal muscle protein synthesis. Good sources: chicken, fish, eggs, dairy, legumes, tofu, protein powder. Total daily intake matters more than timing."
+    },
+    {
+      "q": "Should I bulk or cut?",
+      "a": "To build muscle: eat a slight surplus of 200-500 calories above maintenance. To lose fat: eat a moderate deficit of 300-500 below maintenance. Estimate maintenance as bodyweight (lbs) x 14-16, then adjust based on 2-3 weeks of weight changes. Beginners with higher body fat can often do both at once (recomposition)."
+    },
+    {
+      "q": "What supplements actually work?",
+      "a": "Creatine monohydrate (3-5g daily) is the most well-researched and effective. Protein powder is convenient but not magic. Caffeine (3-6 mg/kg) improves workout performance. Vitamin D if you're deficient. Skip BCAAs, testosterone boosters, fat burners, and most proprietary blends — they're overhyped."
+    },
+    {
+      "q": "How important is sleep for muscle growth?",
+      "a": "Very. Aim for 7-9 hours per night. Most muscle repair happens during sleep. Poor sleep raises cortisol, impairs recovery, and reduces performance. A consistent sleep schedule matters more than total hours."
+    },
+    {
+      "q": "What is a deload and do I need one?",
+      "a": "A deload is a planned reduction in training volume or intensity (typically 40-50% less) for a week. Do one every 4-8 weeks to let accumulated fatigue dissipate. You'll come back stronger. Beginners may not need deloads for the first several months since they recover faster."
+    },
+    {
+      "q": "Is muscle confusion real?",
+      "a": "No, it's a myth. Muscles respond to progressive tension overload, not exercise novelty. You don't need to constantly change exercises. Keep your main compound lifts consistent so you can track progress. It's fine to rotate accessory exercises for variety and to address weaknesses."
+    },
+    {
+      "q": "How do I warm up properly?",
+      "a": "5-10 minutes of light cardio to raise body temperature, dynamic stretching for the muscles you're about to train, then 1-2 warm-up sets with lighter weight before your working sets. Don't skip warm-ups — injury prevention is critical for long-term progress."
+    },
+    {
+      "q": "What about carbs and fats?",
+      "a": "Carbs: primary fuel for intense training. Aim for 40-55% of calories. Don't fear carbs if building muscle. Prioritize complex carbs (oats, rice, potatoes, fruits). Fats: essential for hormones. Aim for 20-35% of calories. Include olive oil, avocados, nuts, fatty fish. Don't go below 0.3g per lb bodyweight."
+    }
+  ],
+  "chunks": [
+    {
+      "topic": "training_hierarchy",
+      "content": "Training variables ranked by importance: 1) Safety & Enjoyment leading to Sustainability, 2) Effort (train within 2-3 reps of failure, RPE 7-9), 3) Progressive Overload (add weight or reps over time, the #1 driver of growth) and Prioritization (train weak points first), 4) Volume (10-20 hard sets per muscle per week), 5) Frequency (at least 2x per week per body part), 6) Rep Ranges (wide range works if close to failure), 7) Exercise Selection (compounds first), 8) Rest Periods (2-5 min compounds, 1-2 min isolation), 9) Tempo (least important, just control the weight)."
+    },
+    {
+      "topic": "volume_concepts",
+      "content": "MEV (Minimum Effective Volume): ~6-8 sets per muscle per week, the least needed to grow. MAV (Maximum Adaptive Volume): ~10-15 sets, the sweet spot. MRV (Maximum Recoverable Volume): ~20-25 sets, the most you can handle without overtraining. Volume has diminishing returns. Beginners start near 10 sets and increase gradually."
+    },
+    {
+      "topic": "nutrition_overview",
+      "content": "Protein: 0.7-1.0g per lb bodyweight, spread across 3-5 meals. Carbs: 40-55% of calories, primary fuel for training. Fats: 20-35% of calories, essential for hormones. Bulking: +200-500 cal above maintenance. Cutting: -300-500 below maintenance. Track food initially to learn portions. Flexible dieting works. No foods are inherently bad."
+    },
+    {
+      "topic": "supplements_summary",
+      "content": "Worth taking: creatine monohydrate (3-5g daily, safe, well-researched), protein powder (convenient), caffeine (3-6mg/kg pre-workout), vitamin D (if deficient). Not worth taking: BCAAs, testosterone boosters, fat burners, proprietary blends."
+    },
+    {
+      "topic": "recovery_basics",
+      "content": "Sleep 7-9 hours nightly. Deload every 4-8 weeks (reduce volume/intensity by 40-50%). Warm up with 5-10 min cardio, dynamic stretching, and lighter warm-up sets. Manage chronic stress as it impairs recovery via cortisol."
+    },
+    {
+      "topic": "splits_overview",
+      "content": "Upper/Lower (4 days/week): great for beginners, each body part 2x/week. Push/Pull/Legs (6 days/week): good for intermediates, each body part 2x/week. Full Body (3 days/week): great for beginners or time-limited, each body part 3x/week. Pick one you'll stick to consistently."
+    }
+  ]
+}

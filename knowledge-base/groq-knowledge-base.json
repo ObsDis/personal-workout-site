@@ -1,0 +1,160 @@
+{
+  "metadata": {
+    "version": "1.0",
+    "last_updated": "2026-04-28",
+    "description": "Groq-optimized knowledge base for workout assistant chatbot. Structured for fast retrieval and concise context injection.",
+    "assistant_identity": "{{username}}'s personal workout assistant",
+    "usage_note": "Derived from master-knowledge-base.txt. Do not edit directly — regenerate from master."
+  },
+  "system_prompt_context": "You are {{username}}'s personal workout assistant. You have deep knowledge of evidence-based training and nutrition. You also have access to the user's actual workout data from their app (logged workouts, splits, exercise history, progress over time, profile info). Use this data to give personalized advice. Be direct, specific, and encouraging. When the user's data shows patterns (e.g., skipping muscle groups, declining volume, good progression), mention them proactively. Never reference images or photos. Identify yourself as '{{username}}'s personal workout assistant'.",
+  "topics": [
+    {
+      "id": "training_hierarchy",
+      "title": "Training Priority Hierarchy",
+      "summary": "Training variables ranked by importance: 1) Safety & Enjoyment → Sustainability, 2) Effort (RPE 7-9, within 2-3 reps of failure), 3) Progressive Overload (the #1 driver of growth — add weight or reps over time) & Prioritization (train weak points first), 4) Volume (10-20 hard sets/muscle/week), 5) Frequency (2x/week per body part minimum), 6) Rep ranges (wide range works: 6-15 main, 3-6 for strength, 15-25 for accessories), 7) Exercise selection (compounds first), 8) Rest periods (2-5 min compounds, 1-2 min isolation), 9) Tempo (least important — just control the weight).",
+      "key_facts": [
+        "Progressive overload is the #1 driver of long-term muscle growth",
+        "Muscle confusion is a myth — muscles respond to progressive tension, not exercise novelty",
+        "Train within 2-3 reps of failure on most sets (RPE 7-9)",
+        "Absolute failure every set is NOT required and may impair recovery",
+        "Sustainability beats optimization — the best program is one you'll follow",
+        "10-20 hard sets per muscle group per week is the research-supported range",
+        "Training each muscle 2x/week beats 1x/week even at the same total volume",
+        "Hypertrophy occurs across a wide rep range (3-30+) if effort is matched",
+        "Tempo is the least important variable — don't overthink it"
+      ]
+    },
+    {
+      "id": "training_splits",
+      "title": "Training Splits",
+      "summary": "Three main splits recommended based on experience and schedule.",
+      "splits": [
+        {
+          "name": "Upper/Lower",
+          "days_per_week": 4,
+          "frequency": "2x/week per body part",
+          "best_for": "Beginners and intermediates",
+          "schedule": "Upper, Lower, Rest, Upper, Lower, Rest, Rest"
+        },
+        {
+          "name": "Push/Pull/Legs",
+          "days_per_week": 6,
+          "frequency": "2x/week per body part",
+          "best_for": "Intermediates who want more gym time",
+          "schedule": "Push, Pull, Legs, Push, Pull, Legs, Rest"
+        },
+        {
+          "name": "Full Body",
+          "days_per_week": 3,
+          "frequency": "3x/week per body part",
+          "best_for": "Beginners or time-limited lifters",
+          "schedule": "Full Body, Rest, Full Body, Rest, Full Body, Rest, Rest"
+        }
+      ]
+    },
+    {
+      "id": "exercise_selection",
+      "title": "Recommended Exercises by Body Part",
+      "body_parts": {
+        "chest": ["Barbell bench press (flat)", "Incline dumbbell/barbell press", "Cable/dumbbell fly", "Dips"],
+        "back": ["Barbell/dumbbell row", "Pull-ups or lat pulldown", "Seated cable row", "Face pulls"],
+        "shoulders": ["Overhead press", "Lateral raises (critical for width)", "Face pulls/reverse fly"],
+        "quads": ["Back squat or front squat", "Leg press", "Leg extension", "Walking lunges"],
+        "hamstrings_glutes": ["Romanian deadlift (RDL)", "Leg curl (essential — squats barely hit hamstrings)", "Hip thrust"],
+        "calves": ["Standing calf raise (pause at bottom)", "Seated calf raise (targets soleus)"],
+        "biceps": ["Barbell curl", "Hammer curl"],
+        "triceps": ["Tricep pushdown", "Overhead extension", "Close-grip bench press"]
+      },
+      "principles": [
+        "Compound movements first, isolation work for lagging areas",
+        "Cover all movement patterns: push, pull, squat, hinge",
+        "Keep main lifts consistent for tracking; rotate accessories",
+        "Choose exercises you enjoy and can perform safely"
+      ]
+    },
+    {
+      "id": "rest_periods",
+      "title": "Rest Periods",
+      "recommendations": {
+        "compound_exercises": "2-5 minutes (heavier sets need more rest)",
+        "isolation_exercises": "1-2 minutes",
+        "supersets": "Great time-saver — pair opposing muscles (e.g., bicep curl + tricep pushdown)"
+      },
+      "key_point": "Longer rest allows better volume maintenance, which drives more hypertrophy. Don't rush heavy compounds."
+    },
+    {
+      "id": "nutrition",
+      "title": "Nutrition Fundamentals",
+      "calories": {
+        "build_muscle": "Slight surplus: 200-500 cal above maintenance",
+        "lose_fat": "Moderate deficit: 300-500 cal below maintenance",
+        "estimate_maintenance": "Bodyweight (lbs) x 14-16 as starting point"
+      },
+      "macros": {
+        "protein": "0.7-1.0g per lb bodyweight (most important macro). Spread across 3-5 meals.",
+        "carbs": "40-55% of calories. Primary fuel for training. Don't fear carbs.",
+        "fats": "20-35% of calories. Essential for hormones. Don't go below 0.3g/lb."
+      },
+      "practical_tips": [
+        "Track food for a few weeks to learn portions — don't need to track forever",
+        "No foods are inherently 'bad' — focus on overall daily intake",
+        "Flexible dieting works: hit protein and calorie targets, fill rest with foods you enjoy",
+        "Meal prep helps consistency",
+        "Hydration: ~half bodyweight (lbs) in oz of water daily"
+      ]
+    },
+    {
+      "id": "supplements",
+      "title": "Supplements",
+      "worth_taking": [
+        "Creatine monohydrate: 3-5g daily (most well-researched, safe long-term)",
+        "Protein powder: convenient for hitting protein targets (not magic)",
+        "Caffeine: 3-6 mg/kg pre-workout for performance",
+        "Vitamin D: 1000-2000 IU/day if deficient"
+      ],
+      "not_worth_taking": [
+        "BCAAs (waste of money if protein intake is adequate)",
+        "Testosterone boosters (don't work)",
+        "Fat burners (minimal effect, not worth side effects)",
+        "Most proprietary blends (underdosed marketing)"
+      ]
+    },
+    {
+      "id": "recovery",
+      "title": "Recovery & Lifestyle",
+      "sleep": "7-9 hours/night. Most muscle repair occurs during sleep. Consistent schedule > total hours.",
+      "deloads": "Every 4-8 weeks, reduce volume/intensity by 40-50%. Beginners may not need deloads for first several months.",
+      "warmup": "5-10 min light cardio, dynamic stretching, 1-2 lighter warm-up sets before working sets.",
+      "stress": "Chronic stress elevates cortisol and impairs recovery. Manage with meditation, walks, hobbies."
+    },
+    {
+      "id": "volume_concepts",
+      "title": "Volume Concepts (Advanced)",
+      "concepts": {
+        "MEV": "Minimum Effective Volume — least amount needed to grow (~6-8 sets/muscle/week)",
+        "MAV": "Maximum Adaptive Volume — the sweet spot (~10-15 sets/muscle/week)",
+        "MRV": "Maximum Recoverable Volume — most you can do and recover from (~20-25 sets/muscle/week)"
+      },
+      "key_point": "Volume has diminishing returns. Doubling sets does NOT double gains. Going beyond MRV leads to overtraining."
+    },
+    {
+      "id": "rep_ranges_detail",
+      "title": "Rep Ranges & Periodization",
+      "hypertrophy_range": "Broadly 3-30+ reps can build muscle IF close to failure",
+      "practical_ranges": {
+        "strength_focus": "3-6 reps (heavy, best for neural adaptations)",
+        "hypertrophy_main": "6-12 reps (good blend of size and strength)",
+        "isolation_pump": "12-20+ reps (joint-friendly, great for accessories)"
+      },
+      "periodization": "Can vary rep ranges across blocks. Accumulation phase (higher reps, more volume) → Intensification phase (lower reps, heavier weight). Not critical for beginners."
+    },
+    {
+      "id": "tempo_detail",
+      "title": "Lifting Tempo",
+      "recommendation": "Moderate tempo: 2-6 seconds per rep total. Eccentric 2-3 sec (controlled), concentric 1-2 sec (can be explosive).",
+      "avoid": "Very slow reps (10+ sec per rep) — reduce volume without extra benefit.",
+      "technique": "Enhanced eccentrics (3-5 sec lowering) can be useful for hypertrophy but are fatiguing. Use strategically.",
+      "priority": "Tempo is the LEAST important training variable. Focus on the big rocks first."
+    }
+  ]
+}
