@@ -1,25 +1,10 @@
-plugins = []
-headers = []
-redirects = []
-
-[functions]
-
-[functions."*"]
-
 [build]
-publish = "/sessions/magical-loving-albattani/mnt/Personal workout site "
-publishOrigin = "default"
+  publish = "."
+  command = ""
 
-[build.environment]
-
-[build.processing]
-
-[build.processing.css]
-
-[build.processing.html]
-
-[build.processing.images]
-
-[build.processing.js]
-
-[build.services]
+# Static-site headers
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"

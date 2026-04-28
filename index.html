@@ -3193,12 +3193,7 @@ function showChatSettings() {
         <p style="font-size:.75rem;color:var(--text-muted);margin-top:.25rem;">Get a free key at <a href="https://huggingface.co/settings/tokens" target="_blank" style="color:var(--accent);">huggingface.co/settings/tokens</a></p>
       </div>
       <div style="display:flex;gap:.75rem;">
-        <button class="btn btn-primary" style="flex:1;" onclick="
-          localStorage.setItem('GROQ_API_KEY', document.getElementById('settGroqKey').value.trim());
-          localStorage.setItem('HF_API_KEY', document.getElementById('settHfKey').value.trim());
-          document.getElementById('chatSettingsOverlay').remove();
-          toast('API keys saved');
-        ">Save</button>
+        <button id="settSaveBtn" class="btn btn-primary" style="flex:1;">Save</button>
         <button class="btn btn-ghost" onclick="document.getElementById('chatSettingsOverlay').remove();">Cancel</button>
       </div>
       <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);">
@@ -3213,6 +3208,34 @@ function showChatSettings() {
     </div>`;
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
   document.body.appendChild(overlay);
+
+  // Wire Save button: persist to localStorage AND sync to Supabase profile so other devices auto-pick it up.
+  const saveBtn = document.getElementById('settSaveBtn');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', async () => {
+      const groqKey = document.getElementById('settGroqKey').value.trim();
+      const hfKey   = document.getElementById('settHfKey').value.trim();
+      saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
+      try {
+        if (groqKey) localStorage.setItem('GROQ_API_KEY', groqKey); else localStorage.removeItem('GROQ_API_KEY');
+        if (hfKey)   localStorage.setItem('HF_API_KEY', hfKey);     else localStorage.removeItem('HF_API_KEY');
+        if (state.session?.user?.id) {
+          await sb.from('profiles').update({
+            groq_api_key: groqKey || null,
+            hf_api_key:   hfKey   || null,
+            updated_at:   new Date().toISOString(),
+          }).eq('id', state.session.user.id);
+          if (state.profile) { state.profile.groq_api_key = groqKey; state.profile.hf_api_key = hfKey; }
+        }
+        document.getElementById('chatSettingsOverlay')?.remove();
+        toast('API keys saved' + (state.session ? ' and synced' : ''));
+      } catch (e) {
+        console.error('save API keys failed', e);
+        toast(e.message || 'Save failed', 'error');
+        saveBtn.disabled = false; saveBtn.textContent = 'Save';
+      }
+    });
+  }
 }
 
 // ---- Render the full chat page ----
@@ -3370,6 +3393,16 @@ async function boot() {
     state.session = data.session;
     if (state.session) {
       state.profile = await qProfile();
+      // Sync chat API keys from profile down to localStorage so the chat works on every device
+      // the user logs in on, without re-pasting the key.
+      try {
+        if (state.profile?.groq_api_key && !localStorage.getItem('GROQ_API_KEY')) {
+          localStorage.setItem('GROQ_API_KEY', state.profile.groq_api_key);
+        }
+        if (state.profile?.hf_api_key && !localStorage.getItem('HF_API_KEY')) {
+          localStorage.setItem('HF_API_KEY', state.profile.hf_api_key);
+        }
+      } catch (e) { console.warn('chat key sync failed', e); }
       if (state.profile) state.plan = await qActivePlan();
     }
   } catch (e) {
