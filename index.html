@@ -235,6 +235,17 @@
   .speaking-indicator span:nth-child(3) { animation-delay:.3s; }
   @keyframes speakBar { 0%,100%{height:4px} 50%{height:14px} }
 
+  /* ===== CONVERSATION MODE BUTTON ===== */
+  #chatConvoBtn { position:relative; }
+  #chatConvoBtn.on { color:var(--accent); }
+  #chatConvoBtn.on::after {
+    content:''; position:absolute; right:.125rem; top:.125rem; width:.5rem; height:.5rem;
+    border-radius:50%; background:var(--accent); box-shadow:0 0 0 0 rgba(16,185,129,.6);
+    animation:micPulse 1.4s ease-in-out infinite;
+  }
+  body.convo-mode { /* visible cue: subtle accent glow at edges of chat page */ }
+  body.convo-mode .chat-page { box-shadow:inset 0 0 0 2px rgba(16,185,129,.45); }
+
 /* ===== UTILITIES ===== */
   .hide { display:none !important; }
   .scroll-smooth { scroll-behavior:smooth; }
@@ -3387,6 +3398,8 @@ const voiceState = {
   utterance: null,
   voicesLoaded: false,
   preferredVoice: null,
+  conversationMode: false,    // hands-free: auto-restart mic after AI finishes speaking
+  lastTtsRestoreFlag: null,   // remembers whether TTS was on before convo mode flipped it
 };
 
 function _voiceSupportsSTT() {
@@ -3415,11 +3428,61 @@ function _loadVoices() {
 }
 _loadVoices();
 
+function toggleConversationMode() {
+  voiceState.conversationMode = !voiceState.conversationMode;
+  const cmBtn = document.getElementById('chatConvoBtn');
+  const ttsBtn = document.getElementById('chatTTSBtn');
+
+  if (voiceState.conversationMode) {
+    if (!_voiceSupportsSTT()) {
+      voiceState.conversationMode = false;
+      toast('Voice input not supported in this browser. Try Chrome on desktop or Safari on iOS.', 'error');
+      return;
+    }
+    document.body.classList.add('convo-mode');
+    // Remember prior TTS preference so we can restore it
+    voiceState.lastTtsRestoreFlag = voiceState.speakReplies;
+    voiceState.speakReplies = true;
+    localStorage.setItem('CHAT_TTS', '1');
+    if (ttsBtn) { ttsBtn.classList.add('on'); ttsBtn.title = 'Voice replies: ON'; }
+    cmBtn?.classList.add('on');
+    cmBtn?.setAttribute('aria-pressed', 'true');
+    // Kick off the conversation
+    if (!voiceState.listening) toggleVoiceInput();
+  } else {
+    // Stop both ends and restore prior TTS preference
+    try { voiceState.recognition?.abort(); } catch {}
+    stopSpeaking();
+    voiceState.listening = false;
+    if (voiceState.lastTtsRestoreFlag === false) {
+      voiceState.speakReplies = false;
+      localStorage.setItem('CHAT_TTS', '0');
+      if (ttsBtn) { ttsBtn.classList.remove('on'); ttsBtn.title = 'Voice replies: OFF (tap to enable)'; }
+    }
+    cmBtn?.classList.remove('on');
+    cmBtn?.setAttribute('aria-pressed', 'false');
+    document.body.classList.remove('convo-mode');
+  }
+  updateVoiceStatusBar();
+}
+
+// Stop any ongoing voice activity if user leaves the chat page.
+window.addEventListener('hashchange', () => {
+  if (!(location.hash || '').startsWith('#/chat')) {
+    if (voiceState.conversationMode) {
+      voiceState.conversationMode = false;
+      try { voiceState.recognition?.abort(); } catch {}
+      stopSpeaking();
+    }
+  }
+});
+
 // Expose voice helpers for inline onclick handlers in the chat header
 if (typeof window !== 'undefined') {
   window.toggleChatTTS = toggleChatTTS;
   window.stopSpeaking = stopSpeaking;
   window.toggleVoiceInput = toggleVoiceInput;
+  window.toggleConversationMode = toggleConversationMode;
   window.showChatSettings = (typeof showChatSettings !== 'undefined') ? showChatSettings : window.showChatSettings;
 }
 
@@ -3437,8 +3500,23 @@ function speakReplyText(text) {
   const u = new SpeechSynthesisUtterance(clean);
   u.lang = 'en-US'; u.rate = 1.05; u.pitch = 1.0;
   if (voiceState.preferredVoice) u.voice = voiceState.preferredVoice;
-  u.onend = () => updateVoiceStatusBar();
-  u.onerror = () => updateVoiceStatusBar();
+  u.onend = () => {
+    updateVoiceStatusBar();
+    if (voiceState.conversationMode && !voiceState.listening) {
+      // Small pause so the user has a beat before mic re-arms
+      setTimeout(() => {
+        if (voiceState.conversationMode && !voiceState.listening && (location.hash || '').startsWith('#/chat')) {
+          toggleVoiceInput();
+        }
+      }, 350);
+    }
+  };
+  u.onerror = () => {
+    updateVoiceStatusBar();
+    if (voiceState.conversationMode && !voiceState.listening && (location.hash || '').startsWith('#/chat')) {
+      setTimeout(() => { if (voiceState.conversationMode && !voiceState.listening) toggleVoiceInput(); }, 500);
+    }
+  };
   voiceState.utterance = u;
   speechSynthesis.speak(u);
   updateVoiceStatusBar();
@@ -3534,16 +3612,33 @@ function toggleVoiceInput() {
 function updateVoiceStatusBar() {
   const bar = document.getElementById('voiceStatusBar');
   if (!bar) return;
+  const inConvo = voiceState.conversationMode;
+  const stopHandsFreeLink = inConvo
+    ? '<button onclick="toggleConversationMode()" style="margin-left:auto;background:transparent;border:0;color:inherit;font-size:.75rem;cursor:pointer;text-decoration:underline;">end conversation</button>'
+    : '';
   if (voiceState.listening) {
     bar.className = 'voice-status-bar';
     bar.style.display = 'flex';
-    bar.innerHTML = '<span class="vs-dot"></span><span>Listening — tap mic again to stop and send</span>';
+    bar.innerHTML = '<span class="vs-dot"></span><span>' + (inConvo ? 'Listening…' : 'Listening — tap mic again to stop and send') + '</span>' + stopHandsFreeLink;
+    return;
+  }
+  if (typeof chatState !== 'undefined' && chatState.isLoading) {
+    bar.className = 'voice-status-bar tts';
+    bar.style.display = 'flex';
+    bar.innerHTML = '<span class="vs-dot"></span><span>Thinking…</span>' + stopHandsFreeLink;
     return;
   }
   if (voiceState.speakReplies && _voiceSupportsTTS() && speechSynthesis.speaking) {
     bar.className = 'voice-status-bar tts';
     bar.style.display = 'flex';
-    bar.innerHTML = '<span class="vs-dot"></span><span>Speaking reply</span><span class="speaking-indicator"><span></span><span></span><span></span></span><button onclick="stopSpeaking()" style="margin-left:auto;background:transparent;border:0;color:inherit;font-size:.75rem;cursor:pointer;text-decoration:underline;">stop</button>';
+    bar.innerHTML = '<span class="vs-dot"></span><span>Speaking reply</span><span class="speaking-indicator"><span></span><span></span><span></span></span>' +
+      (inConvo ? stopHandsFreeLink : '<button onclick="stopSpeaking()" style="margin-left:auto;background:transparent;border:0;color:inherit;font-size:.75rem;cursor:pointer;text-decoration:underline;">stop</button>');
+    return;
+  }
+  if (inConvo) {
+    bar.className = 'voice-status-bar tts';
+    bar.style.display = 'flex';
+    bar.innerHTML = '<span class="vs-dot"></span><span>Conversation mode — say something</span>' + stopHandsFreeLink;
     return;
   }
   bar.style.display = 'none';
@@ -3554,12 +3649,16 @@ async function sendChatMessage(userMsg) {
   chatState.messages.push({ role: 'user', content: userMsg });
   chatState.isLoading = true;
   renderChatMessages();
+  try { updateVoiceStatusBar(); } catch {}
 
   // Build system prompt with user data
   const userName = state.profile?.display_name || 'there';
   let systemPrompt = KB_CONTEXT.replace(/\{\{username\}\}/g, userName);
   const userContext = await getChatUserContext();
   systemPrompt += userContext;
+  if (voiceState.conversationMode) {
+    systemPrompt += `\n\nVOICE CONVERSATION MODE: replies are read aloud. Keep them under 3 sentences and direct unless the user asks for detail. Avoid markdown, lists, or code blocks; use plain prose only.`;
+  }
   systemPrompt += `\n\nLOGGING TOOLS AVAILABLE — USE PROACTIVELY:
 - log_food: when the user describes eating something, call this. ALWAYS provide estimates for calories, protein_g, carbs_g, fat_g, AND fiber_g. NEVER omit these. Use standard nutrition database values when the user doesn't give numbers — for example, 1 medium sweet potato is roughly 115 kcal / 2g protein / 27g carbs / 0g fat / 4g fiber. 100g cooked chicken breast is roughly 165 kcal / 31g protein / 0g carbs / 3.6g fat. 1 cup cooked white rice is roughly 205 kcal / 4g protein / 45g carbs / 0g fat. Pick meal_slot from time of day if unspecified (≤10am breakfast, 11-2 lunch, 5-9 dinner, else snack).
 - log_workout_set: when the user says they did a set of an exercise with weight and reps, call this once per set.
@@ -3614,7 +3713,7 @@ Always confirm in plain English what you logged, including the macro estimates y
   chatState.isLoading = false;
   chatState.hasActiveConvo = true;
   renderChatMessages();
-  // If TTS is enabled, read the reply aloud
+  try { updateVoiceStatusBar(); } catch {}
   try { speakReplyText(response); } catch (e) { console.warn('TTS failed', e); }
 }
 
@@ -3740,6 +3839,9 @@ function renderChat() {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         </div>
         <h2>Workout Assistant</h2>
+        <button id="chatConvoBtn" onclick="toggleConversationMode()" title="Hands-free conversation mode" aria-label="Toggle conversation mode" aria-pressed="false" style="background:none;border:0;color:var(--text-muted);cursor:pointer;padding:.25rem;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-6.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/><circle cx="9" cy="11" r="1" fill="currentColor"/><circle cx="13" cy="11" r="1" fill="currentColor"/><circle cx="17" cy="11" r="1" fill="currentColor"/></svg>
+        </button>
         <button id="chatTTSBtn" onclick="toggleChatTTS()" title="Voice replies" aria-label="Toggle voice replies">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
         </button>
