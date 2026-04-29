@@ -3098,7 +3098,7 @@ const CHAT_TOOLS = [
     type: 'function',
     function: {
       name: 'log_food',
-      description: 'Log a food the user ate. Use when the user describes eating something. Estimate macros if not provided. Default meal_slot from the time of day if unspecified.',
+      description: 'Log a food the user ate, with full macro estimates. ALWAYS include calories, protein_g, carbs_g, fat_g, and fiber_g — use standard nutrition database values when the user doesn\'t give numbers (e.g. 1 medium sweet potato ≈ 115 kcal / 2 P / 27 C / 0 F / 4 fiber; 100g cooked chicken breast ≈ 165 kcal / 31 P / 0 C / 3.6 F). Default meal_slot from time of day if unspecified.',
       parameters: {
         type: 'object',
         properties: {
@@ -3176,7 +3176,7 @@ async function executeChatTool(name, args) {
   try {
     const today = new Date().toISOString().slice(0, 10);
     if (name === 'log_food') {
-      const row = {
+      let row = {
         log_date: args.log_date || today,
         meal_slot: args.meal_slot || 'snack',
         food_name: args.food_name,
@@ -3190,9 +3190,30 @@ async function executeChatTool(name, args) {
         fiber_g: args.fiber_g ?? null,
         source: 'chat',
       };
+      // Fallback: if model omitted all macros, look up via OpenFoodFacts so we never save an empty row.
+      const allMacrosMissing = (row.calories == null) && (row.protein_g == null) && (row.carbs_g == null) && (row.fat_g == null);
+      let off_used = false;
+      if (allMacrosMissing && row.food_name) {
+        try {
+          const results = await searchFoodOFF(row.food_name, 1);
+          if (results && results.length) {
+            const r = results[0];
+            row.calories = row.calories ?? r.calories ?? null;
+            row.protein_g = row.protein_g ?? r.protein_g ?? null;
+            row.carbs_g = row.carbs_g ?? r.carbs_g ?? null;
+            row.fat_g = row.fat_g ?? r.fat_g ?? null;
+            row.fiber_g = row.fiber_g ?? r.fiber_g ?? null;
+            row.serving_size_g = row.serving_size_g ?? r.serving_size_g ?? null;
+            row.brand = row.brand ?? r.brand ?? null;
+            row.source = 'chat+openfoodfacts';
+            off_used = true;
+          }
+        } catch {}
+      }
       const saved = await qSaveFoodLog(row);
       try { await qBumpFavorite(row); } catch {}
-      return { ok: true, summary: `Logged: ${row.food_name}${row.brand?` (${row.brand})`:''} · ${row.calories??'?'} kcal · P${row.protein_g??'?'}/C${row.carbs_g??'?'}/F${row.fat_g??'?'}`, id: saved.id };
+      const summary = `Logged: ${row.food_name}${row.brand?` (${row.brand})`:''} · ${row.calories??'?'} kcal · P${row.protein_g??'?'}/C${row.carbs_g??'?'}/F${row.fat_g??'?'}` + (off_used ? ' [filled from OpenFoodFacts because model omitted macros]' : '');
+      return { ok: true, summary, id: saved.id, off_used };
     }
 
     if (name === 'log_workout_set') {
@@ -3346,12 +3367,12 @@ async function sendChatMessage(userMsg) {
   let systemPrompt = KB_CONTEXT.replace(/\{\{username\}\}/g, userName);
   const userContext = await getChatUserContext();
   systemPrompt += userContext;
-  systemPrompt += `\n\nLOGGING TOOLS AVAILABLE:
-- log_food: when the user describes eating something, call this. Estimate macros from food name + portion if they didn't give numbers; pick a sensible meal_slot from the time of day (≤10am breakfast, 11-2 lunch, 5-9 dinner, else snack) unless they said.
+  systemPrompt += `\n\nLOGGING TOOLS AVAILABLE — USE PROACTIVELY:
+- log_food: when the user describes eating something, call this. ALWAYS provide estimates for calories, protein_g, carbs_g, fat_g, AND fiber_g. NEVER omit these. Use standard nutrition database values when the user doesn't give numbers — for example, 1 medium sweet potato is roughly 115 kcal / 2g protein / 27g carbs / 0g fat / 4g fiber. 100g cooked chicken breast is roughly 165 kcal / 31g protein / 0g carbs / 3.6g fat. 1 cup cooked white rice is roughly 205 kcal / 4g protein / 45g carbs / 0g fat. Pick meal_slot from time of day if unspecified (≤10am breakfast, 11-2 lunch, 5-9 dinner, else snack).
 - log_workout_set: when the user says they did a set of an exercise with weight and reps, call this once per set.
 - log_body_weight: when the user reports their body weight.
 - log_cardio: when the user reports a cardio session.
-After calling tools, briefly confirm in plain English what you logged and the totals if relevant.`;
+Always confirm in plain English what you logged, including the macro estimates you used.`;
 
   // Only send last 20 messages for context window management
   const recentMessages = chatState.messages.slice(-20).map(m => ({
@@ -3774,35 +3795,89 @@ async function aiEstimateFoodFromPhoto(file, portionHint = '') {
 
 
 // --- Live camera capture for AI photo scan ---
-async function captureFromCamera() {
+// Open camera, count down, auto-snap, then run `consume(file)` on the result.
+// While consume is running the camera overlay shows "Analyzing…", and only closes when consume resolves/rejects.
+async function captureFoodWithCamera(consume) {
   const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
   return new Promise((resolve, reject) => {
     const video = document.createElement('video');
-    video.srcObject = stream; video.setAttribute('playsinline','true'); video.style.cssText='width:100%;max-width:560px;border-radius:.625rem;background:#000;';
+    video.srcObject = stream; video.setAttribute('playsinline','true');
+    video.style.cssText = 'width:100%;max-width:560px;aspect-ratio:4/3;object-fit:cover;border-radius:.75rem;background:#000;';
     const overlay = document.createElement('div');
-    overlay.style.cssText='position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.75rem;padding:1rem;';
-    overlay.innerHTML = '<div style="font-size:.8125rem;color:#fafafa;">Frame the food, then tap Capture</div>';
-    overlay.appendChild(video);
-    const row = document.createElement('div'); row.style.cssText='display:flex;gap:.5rem;width:100%;max-width:560px;';
-    const cancel = document.createElement('button'); cancel.className='btn btn-ghost'; cancel.textContent='Cancel'; cancel.style.flex='1';
-    const snap = document.createElement('button'); snap.className='btn btn-primary'; snap.textContent='Capture'; snap.style.flex='2';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.75rem;padding:1rem;';
+    const heading = document.createElement('div');
+    heading.style.cssText = 'font-size:.875rem;color:#fafafa;font-weight:600;text-align:center;';
+    heading.textContent = 'Frame the food';
+    overlay.appendChild(heading);
+    const frameWrap = document.createElement('div');
+    frameWrap.style.cssText = 'position:relative;width:100%;max-width:560px;';
+    frameWrap.appendChild(video);
+    const counterEl = document.createElement('div');
+    counterEl.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:5rem;font-weight:800;color:#fff;text-shadow:0 4px 24px rgba(0,0,0,.65);pointer-events:none;';
+    frameWrap.appendChild(counterEl);
+    overlay.appendChild(frameWrap);
+    const status = document.createElement('div');
+    status.style.cssText = 'font-size:.8125rem;color:#a3a3a3;text-align:center;min-height:1.25rem;';
+    status.textContent = 'Hold still — auto-capturing in 3…';
+    overlay.appendChild(status);
+    const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:.5rem;width:100%;max-width:560px;';
+    const cancel = document.createElement('button'); cancel.className = 'btn btn-ghost'; cancel.textContent = 'Cancel'; cancel.style.flex = '1';
+    const snap = document.createElement('button'); snap.className = 'btn btn-primary'; snap.textContent = 'Capture now'; snap.style.flex = '2';
     row.appendChild(cancel); row.appendChild(snap); overlay.appendChild(row);
     document.body.appendChild(overlay);
     video.play();
-    const stop = () => { stream.getTracks().forEach(t=>t.stop()); overlay.remove(); };
+
+    let stopped = false;
+    let countdownTimer;
+    const stop = () => { stopped = true; clearInterval(countdownTimer); try { stream.getTracks().forEach(t => t.stop()); } catch {} overlay.remove(); };
     cancel.onclick = () => { stop(); reject(new Error('Cancelled')); };
-    snap.onclick = async () => {
+
+    const captureFrame = async () => {
+      if (stopped) return;
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 1280; canvas.height = video.videoHeight || 960;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.85));
+      if (!blob) { stop(); reject(new Error('Capture failed')); return; }
+      const file = new File([blob], 'capture.jpg', { type: 'image/jpeg' });
+      // Switch overlay to "analyzing" mode
+      counterEl.textContent = '';
+      heading.textContent = 'Analyzing photo';
+      status.style.color = '#34d399';
+      status.textContent = 'Sending to AI…';
+      snap.disabled = true; snap.textContent = 'Working…';
       try {
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0);
-        const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.85));
-        if (!blob) { stop(); reject(new Error('Capture failed')); return; }
-        const file = new File([blob], 'capture.jpg', { type: 'image/jpeg' });
-        stop(); resolve(file);
-      } catch (e) { stop(); reject(e); }
+        const result = await consume(file, (msg) => { status.textContent = msg; });
+        stop();
+        resolve(result);
+      } catch (e) {
+        stop();
+        reject(e);
+      }
     };
+    snap.onclick = captureFrame;
+
+    // 3-2-1 countdown then auto-snap
+    let n = 3;
+    counterEl.textContent = n;
+    countdownTimer = setInterval(() => {
+      if (stopped) return;
+      n--;
+      if (n <= 0) {
+        clearInterval(countdownTimer);
+        counterEl.textContent = '';
+        captureFrame();
+      } else {
+        counterEl.textContent = n;
+        status.textContent = `Hold still — auto-capturing in ${n}…`;
+      }
+    }, 1000);
   });
+}
+
+// Backwards-compat alias for the old name (some places still call it).
+async function captureFromCamera() {
+  return captureFoodWithCamera(async (file) => file);
 }
 
 // --- ZXing barcode scanner (fallback for browsers without BarcodeDetector, esp. iOS Safari) ---
@@ -3828,21 +3903,48 @@ async function scanBarcodeWithZXing() {
   const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
   return new Promise((resolve, reject) => {
     const video = document.createElement('video');
-    video.srcObject = stream; video.setAttribute('playsinline','true'); video.style.cssText='width:100%;max-width:560px;border-radius:.625rem;background:#000;';
+    video.srcObject = stream; video.setAttribute('playsinline','true');
+    video.style.cssText = 'width:100%;max-width:560px;aspect-ratio:4/3;object-fit:cover;border-radius:.75rem;background:#000;';
     const overlay = document.createElement('div');
     overlay.style.cssText='position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.75rem;padding:1rem;';
-    overlay.innerHTML = '<div style="font-size:.8125rem;color:#fafafa;">Point camera at barcode</div>';
-    overlay.appendChild(video);
+    const heading = document.createElement('div');
+    heading.style.cssText = 'font-size:.875rem;color:#fafafa;font-weight:600;';
+    heading.textContent = 'Point camera at barcode';
+    overlay.appendChild(heading);
+    const frameWrap = document.createElement('div');
+    frameWrap.style.cssText='position:relative;width:100%;max-width:560px;';
+    frameWrap.appendChild(video);
+    const reticle = document.createElement('div');
+    reticle.style.cssText='position:absolute;left:10%;right:10%;top:35%;bottom:35%;border:2px solid rgba(16,185,129,.85);border-radius:.5rem;box-shadow:0 0 0 9999px rgba(0,0,0,.35);pointer-events:none;';
+    frameWrap.appendChild(reticle);
+    overlay.appendChild(frameWrap);
+    const status = document.createElement('div');
+    status.style.cssText = 'font-size:.8125rem;color:#a3a3a3;text-align:center;min-height:1.25rem;';
+    status.textContent = 'Scanning…';
+    overlay.appendChild(status);
     const cancel = document.createElement('button'); cancel.className='btn btn-ghost'; cancel.textContent='Cancel'; cancel.style.minWidth='160px';
     overlay.appendChild(cancel);
     document.body.appendChild(overlay);
     video.play();
     let done = false;
-    const stop = () => { done = true; try { reader.reset(); } catch {} stream.getTracks().forEach(t=>t.stop()); overlay.remove(); };
+    let promptTimer;
+    const armPrompt = () => {
+      clearTimeout(promptTimer);
+      promptTimer = setTimeout(() => {
+        if (done) return;
+        status.style.color = '#fbbf24';
+        status.textContent = 'No barcode detected — try repositioning or better lighting.';
+        armPrompt();
+      }, 15000);
+    };
+    armPrompt();
+    const stop = () => { done = true; clearTimeout(promptTimer); try { reader.reset(); } catch {} try { stream.getTracks().forEach(t=>t.stop()); } catch {} overlay.remove(); };
     cancel.onclick = () => { stop(); reject(new Error('Cancelled')); };
     reader.decodeFromVideoElementContinuously(video, (result, err, controls) => {
       if (done) { try { controls.stop(); } catch {} return; }
       if (result) {
+        status.style.color = '#34d399';
+        status.textContent = '✓ Found ' + result.getText();
         stop();
         resolve(result.getText());
       }
@@ -3863,24 +3965,67 @@ async function scanBarcodeFromVideo() {
   const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
   return new Promise((resolve, reject) => {
     const video = document.createElement('video');
-    video.srcObject = stream; video.setAttribute('playsinline', 'true'); video.style.cssText = 'width:100%;border-radius:.625rem;background:#000;';
+    video.srcObject = stream; video.setAttribute('playsinline', 'true');
+    video.style.cssText = 'width:100%;max-width:560px;aspect-ratio:4/3;object-fit:cover;border-radius:.75rem;background:#000;';
     const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;padding:1rem;';
-    overlay.innerHTML = '<div style="font-size:.875rem;color:#fafafa;">Point camera at barcode</div>';
-    overlay.appendChild(video);
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.75rem;padding:1rem;';
+    const heading = document.createElement('div');
+    heading.style.cssText = 'font-size:.875rem;color:#fafafa;font-weight:600;';
+    heading.textContent = 'Point camera at barcode';
+    overlay.appendChild(heading);
+    // Reticle frame around the video
+    const frameWrap = document.createElement('div');
+    frameWrap.style.cssText = 'position:relative;width:100%;max-width:560px;';
+    frameWrap.appendChild(video);
+    const reticle = document.createElement('div');
+    reticle.style.cssText = 'position:absolute;left:10%;right:10%;top:35%;bottom:35%;border:2px solid rgba(16,185,129,.85);border-radius:.5rem;box-shadow:0 0 0 9999px rgba(0,0,0,.35);pointer-events:none;';
+    frameWrap.appendChild(reticle);
+    overlay.appendChild(frameWrap);
+    const status = document.createElement('div');
+    status.style.cssText = 'font-size:.8125rem;color:#a3a3a3;text-align:center;min-height:1.25rem;';
+    status.textContent = 'Scanning…';
+    overlay.appendChild(status);
     const cancel = document.createElement('button'); cancel.className = 'btn btn-ghost'; cancel.textContent = 'Cancel'; cancel.style.minWidth = '160px';
     overlay.appendChild(cancel);
     document.body.appendChild(overlay);
     video.play();
+
     let stopped = false;
-    const stop = () => { stopped = true; stream.getTracks().forEach(t => t.stop()); overlay.remove(); };
+    let startedAt = Date.now();
+    const stop = () => { stopped = true; try { stream.getTracks().forEach(t => t.stop()); } catch {} overlay.remove(); };
     cancel.onclick = () => { stop(); reject(new Error('Cancelled')); };
+
+    // 15s reposition prompt that resets each time it triggers
+    const RESET_INTERVAL_MS = 15000;
+    let promptTimer;
+    const armPrompt = () => {
+      clearTimeout(promptTimer);
+      promptTimer = setTimeout(() => {
+        if (stopped) return;
+        status.style.color = '#fbbf24';
+        status.textContent = 'No barcode detected — try repositioning or better lighting.';
+        startedAt = Date.now();
+        armPrompt();
+      }, RESET_INTERVAL_MS);
+    };
+    armPrompt();
+
     const tick = async () => {
       if (stopped) return;
-      try { const found = await detector.detect(video); if (found && found.length) { stop(); resolve(found[0].rawValue); return; } } catch {}
+      try {
+        const found = await detector.detect(video);
+        if (found && found.length) {
+          status.style.color = '#34d399';
+          status.textContent = '✓ Found ' + found[0].rawValue;
+          clearTimeout(promptTimer);
+          stop();
+          resolve(found[0].rawValue);
+          return;
+        }
+      } catch {}
       requestAnimationFrame(tick);
     };
-    setTimeout(tick, 500);
+    setTimeout(tick, 400);
   });
 }
 
@@ -4232,10 +4377,17 @@ async function nutAddView() {
       document.getElementById('ph_camera').addEventListener('click', async () => {
         try {
           status.textContent = 'Opening camera…';
-          const file = await captureFromCamera();
-          status.textContent = 'Captured. Analyzing…';
-          await runOnFile(file);
-        } catch (e) { status.textContent = '✗ ' + e.message; }
+          const guess = await captureFoodWithCamera(async (file, setMsg) => {
+            if (file.size > 4 * 1024 * 1024) throw new Error('Photo too large (4MB max for AI).');
+            setMsg('Identifying food and macros…');
+            const g = await aiEstimateFoodFromPhoto(file, portionHint());
+            setMsg('✓ ' + (g.food_name || 'Identified'));
+            return g;
+          });
+          Object.assign(draft, guess);
+          status.textContent = '✓ Estimated: ' + (guess.food_name || 'Unknown') + ' (review numbers before saving)';
+          renderForm();
+        } catch (e) { status.textContent = '✗ ' + (e.message || 'Capture failed'); }
       });
       const goBtn = document.getElementById('ph_go');
       if (goBtn) goBtn.addEventListener('click', async () => {
