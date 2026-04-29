@@ -3398,9 +3398,28 @@ const voiceState = {
   utterance: null,
   voicesLoaded: false,
   preferredVoice: null,
-  conversationMode: false,    // hands-free: auto-restart mic after AI finishes speaking
-  lastTtsRestoreFlag: null,   // remembers whether TTS was on before convo mode flipped it
+  allVoices: [],
+  byGender: { female: [], male: [], unknown: [] },
+  selectedGender: localStorage.getItem('CHAT_VOICE_GENDER') || 'female',
+  selectedVoiceName: localStorage.getItem('CHAT_VOICE_NAME') || '',
+  rate: Number(localStorage.getItem('CHAT_VOICE_RATE')) || 1.0,
+  conversationMode: false,
+  lastTtsRestoreFlag: null,
 };
+
+const FEMALE_VOICE_HINTS = ['samantha','karen','tessa','moira','fiona','alva','allison','ava','nicky','susan','kate','catherine','serena','veena','vicki','victoria','zoe','zoey','aria','hazel','zira','jenny','anne','anna','eva','heather','sandy','female','woman','linda','amy','michelle','olivia','emma','sophie','chloe','grace','amber','clara','natalie','rachel','meghan','tracy','wendy','kelly','sarah','lily'];
+const MALE_VOICE_HINTS = ['daniel','aaron','fred','alex','tom','jorge','reed','rishi','bruce','albert','junior','david','mark','ryan','guy','brian','christopher','eric','lee','james','adam','male','man','arthur','oliver','john','mike','peter','simon','steve','andrew','jack','luke','thomas','william','rob','paul'];
+
+function genderForVoice(voice) {
+  if (!voice || !voice.name) return 'unknown';
+  const n = voice.name.toLowerCase();
+  if (FEMALE_VOICE_HINTS.some(h => n.includes(h))) return 'female';
+  if (MALE_VOICE_HINTS.some(h => n.includes(h))) return 'male';
+  return 'unknown';
+}
+function _isHighQualityVoice(v) {
+  return /enhanced|premium|natural|neural|wavenet|studio|online/i.test(v.name);
+}
 
 function _voiceSupportsSTT() {
   return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
@@ -3412,20 +3431,64 @@ function _voiceSupportsTTS() {
 function _loadVoices() {
   if (!_voiceSupportsTTS()) return;
   const pick = () => {
-    const voices = speechSynthesis.getVoices();
-    if (!voices.length) return false;
+    const all = speechSynthesis.getVoices();
+    if (!all.length) return false;
     voiceState.voicesLoaded = true;
-    voiceState.preferredVoice =
-      voices.find(v => /en-US/i.test(v.lang) && /Samantha|Karen|Aaron|Nicky/.test(v.name)) ||
-      voices.find(v => /en-US/i.test(v.lang) && v.name.toLowerCase().includes('google')) ||
-      voices.find(v => v.lang.startsWith('en-')) ||
-      voices[0];
+    voiceState.allVoices = all.filter(v => v.lang && v.lang.toLowerCase().startsWith('en'));
+    voiceState.byGender = { female: [], male: [], unknown: [] };
+    voiceState.allVoices.forEach(v => voiceState.byGender[genderForVoice(v)].push(v));
+    Object.keys(voiceState.byGender).forEach(g => {
+      voiceState.byGender[g].sort((a, b) => {
+        const ha = _isHighQualityVoice(a) ? 0 : 1;
+        const hb = _isHighQualityVoice(b) ? 0 : 1;
+        if (ha !== hb) return ha - hb;
+        return a.name.localeCompare(b.name);
+      });
+    });
+    voiceState.preferredVoice = pickPreferredVoice();
     return true;
   };
   if (!pick()) {
-    speechSynthesis.addEventListener('voiceschanged', pick, { once: true });
+    speechSynthesis.addEventListener('voiceschanged', pick);
   }
 }
+
+function pickPreferredVoice() {
+  if (!voiceState.allVoices.length) return null;
+  if (voiceState.selectedVoiceName) {
+    const exact = voiceState.allVoices.find(v => v.name === voiceState.selectedVoiceName);
+    if (exact) return exact;
+  }
+  const gender = voiceState.selectedGender || 'female';
+  const list = voiceState.byGender[gender] || [];
+  const enhanced = list.find(_isHighQualityVoice);
+  if (enhanced) return enhanced;
+  if (list.length) return list[0];
+  const anyHigh = voiceState.allVoices.find(_isHighQualityVoice);
+  if (anyHigh) return anyHigh;
+  return voiceState.allVoices[0];
+}
+
+function setVoiceGender(gender) {
+  voiceState.selectedGender = gender;
+  localStorage.setItem('CHAT_VOICE_GENDER', gender);
+  voiceState.selectedVoiceName = '';
+  localStorage.removeItem('CHAT_VOICE_NAME');
+  voiceState.preferredVoice = pickPreferredVoice();
+}
+
+function setVoiceByName(name) {
+  voiceState.selectedVoiceName = name || '';
+  if (name) localStorage.setItem('CHAT_VOICE_NAME', name);
+  else localStorage.removeItem('CHAT_VOICE_NAME');
+  voiceState.preferredVoice = pickPreferredVoice();
+}
+
+function setVoiceRate(rate) {
+  voiceState.rate = Number(rate) || 1.0;
+  localStorage.setItem('CHAT_VOICE_RATE', String(voiceState.rate));
+}
+
 _loadVoices();
 
 function toggleConversationMode() {
@@ -3498,7 +3561,9 @@ function speakReplyText(text) {
   if (!clean) return;
   try { speechSynthesis.cancel(); } catch {}
   const u = new SpeechSynthesisUtterance(clean);
-  u.lang = 'en-US'; u.rate = 1.05; u.pitch = 1.0;
+  u.lang = (voiceState.preferredVoice?.lang) || 'en-US';
+  u.rate = voiceState.rate || 1.05;
+  u.pitch = 1.0;
   if (voiceState.preferredVoice) u.voice = voiceState.preferredVoice;
   u.onend = () => {
     updateVoiceStatusBar();
@@ -3779,6 +3844,31 @@ function showChatSettings() {
         <button class="btn btn-ghost" onclick="document.getElementById('chatSettingsOverlay').remove();">Cancel</button>
       </div>
       <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);">
+        <div class="label" style="margin-bottom:.5rem;">Voice for replies</div>
+        ${(() => {
+          if (!_voiceSupportsTTS()) return '<div style="font-size:.75rem;color:var(--text-muted);">Voice replies not supported in this browser.</div>';
+          if (!voiceState.voicesLoaded) return '<div style="font-size:.75rem;color:var(--text-muted);">Loading available voices…</div>';
+          const gender = voiceState.selectedGender || 'female';
+          const genderBtn = (g, l) => `<button data-vg="${g}" class="vGender" type="button" style="flex:1;padding:.5rem;background:${gender===g?'var(--accent)':'var(--bg-elevated)'};color:${gender===g?'#000':'var(--text)'};border:1px solid ${gender===g?'var(--accent)':'var(--border)'};border-radius:.5rem;font-weight:600;font-size:.8125rem;cursor:pointer;">${l}</button>`;
+          const opts = (voiceState.byGender[gender] || []).map(v => `<option value="${esc(v.name)}" ${v.name===(voiceState.preferredVoice?.name)?'selected':''}>${esc(v.name)} ${_isHighQualityVoice(v)?'· enhanced':''}</option>`).join('');
+          const otherOpts = (voiceState.byGender.unknown || []).filter(v => _isHighQualityVoice(v)).map(v => `<option value="${esc(v.name)}">${esc(v.name)} (uncategorized)</option>`).join('');
+          return `
+            <div style="display:flex;gap:.5rem;margin-bottom:.625rem;">
+              ${genderBtn('female', 'Female')}
+              ${genderBtn('male', 'Male')}
+            </div>
+            <select id="settVoiceName" class="input" style="margin-bottom:.5rem;">
+              ${opts || '<option value="">No voices for this gender on this device</option>'}
+              ${otherOpts ? `<optgroup label="Other high-quality">${otherOpts}</optgroup>` : ''}
+            </select>
+            <label class="label">Speed: <span id="settVoiceRateLbl">${(voiceState.rate || 1).toFixed(2)}×</span></label>
+            <input id="settVoiceRate" type="range" min="0.6" max="1.6" step="0.05" value="${voiceState.rate || 1}" class="input" style="padding:0;height:32px;" />
+            <button id="settVoiceTest" type="button" class="btn btn-ghost" style="width:100%;margin-top:.625rem;">Preview voice</button>
+            <p style="font-size:.7rem;color:var(--text-muted);margin-top:.5rem;line-height:1.4;">If every voice sounds robotic on iOS, install enhanced voices via Settings → Accessibility → Spoken Content → Voices → English. They'll appear here once downloaded.</p>
+          `;
+        })()}
+      </div>
+      <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);">
         <button class="btn btn-danger" style="width:100%;font-size:.8125rem;" onclick="
           chatState.messages = [];
           chatState.hasActiveConvo = false;
@@ -3818,6 +3908,28 @@ function showChatSettings() {
       }
     });
   }
+
+  // ---- Voice picker handlers ----
+  document.querySelectorAll('.vGender').forEach(el => el.addEventListener('click', () => {
+    setVoiceGender(el.dataset.vg);
+    document.getElementById('chatSettingsOverlay')?.remove();
+    showChatSettings();
+  }));
+  const _vSel = document.getElementById('settVoiceName');
+  if (_vSel) _vSel.addEventListener('change', () => setVoiceByName(_vSel.value));
+  const _vRate = document.getElementById('settVoiceRate');
+  const _vRateLbl = document.getElementById('settVoiceRateLbl');
+  if (_vRate) _vRate.addEventListener('input', () => {
+    setVoiceRate(_vRate.value);
+    if (_vRateLbl) _vRateLbl.textContent = Number(_vRate.value).toFixed(2) + 'x';
+  });
+  const _vTest = document.getElementById('settVoiceTest');
+  if (_vTest) _vTest.addEventListener('click', () => {
+    const name = document.getElementById('settVoiceName')?.value;
+    if (name) setVoiceByName(name);
+    voiceState.speakReplies = true;
+    speakReplyText('Hi! This is what I sound like in your workout app.');
+  });
 }
 
 // ---- Render the full chat page ----
