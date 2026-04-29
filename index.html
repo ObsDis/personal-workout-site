@@ -3567,19 +3567,28 @@ function speakReplyText(text) {
   if (voiceState.preferredVoice) u.voice = voiceState.preferredVoice;
   u.onend = () => {
     updateVoiceStatusBar();
+    // Mic is already started on TTS-start in convo mode (barge-in). Only fall back here
+    // if it didn't start for some reason (older browsers, errors).
     if (voiceState.conversationMode && !voiceState.listening) {
-      // Small pause so the user has a beat before mic re-arms
       setTimeout(() => {
         if (voiceState.conversationMode && !voiceState.listening && (location.hash || '').startsWith('#/chat')) {
           toggleVoiceInput();
         }
-      }, 350);
+      }, 250);
     }
   };
   u.onerror = () => {
     updateVoiceStatusBar();
     if (voiceState.conversationMode && !voiceState.listening && (location.hash || '').startsWith('#/chat')) {
-      setTimeout(() => { if (voiceState.conversationMode && !voiceState.listening) toggleVoiceInput(); }, 500);
+      setTimeout(() => { if (voiceState.conversationMode && !voiceState.listening) toggleVoiceInput(); }, 400);
+    }
+  };
+  // Update bar to "Speaking" before/around start
+  u.onstart = () => {
+    updateVoiceStatusBar();
+    // Barge-in: start listening immediately so the user can interrupt the AI mid-sentence.
+    if (voiceState.conversationMode && !voiceState.listening) {
+      try { toggleVoiceInput(); } catch (e) { console.warn('barge-in mic start failed', e); }
     }
   };
   voiceState.utterance = u;
@@ -3635,6 +3644,14 @@ function toggleVoiceInput() {
     micBtn?.classList.add('listening');
     updateVoiceStatusBar();
   };
+  rec.onspeechstart = () => {
+    // Barge-in: if the AI is currently talking, the user wants to interrupt — silence it.
+    if (_voiceSupportsTTS() && speechSynthesis.speaking) {
+      try { speechSynthesis.cancel(); } catch {}
+      voiceState.utterance = null;
+      updateVoiceStatusBar();
+    }
+  };
   rec.onresult = (e) => {
     let interim = '';
     for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -3684,7 +3701,11 @@ function updateVoiceStatusBar() {
   if (voiceState.listening) {
     bar.className = 'voice-status-bar';
     bar.style.display = 'flex';
-    bar.innerHTML = '<span class="vs-dot"></span><span>' + (inConvo ? 'Listening…' : 'Listening — tap mic again to stop and send') + '</span>' + stopHandsFreeLink;
+    const ttsActive = _voiceSupportsTTS() && speechSynthesis.speaking;
+    const label = ttsActive
+      ? 'Speaking — talk to interrupt'
+      : (inConvo ? 'Listening…' : 'Listening — tap mic again to stop and send');
+    bar.innerHTML = '<span class="vs-dot"></span><span>' + label + '</span>' + stopHandsFreeLink;
     return;
   }
   if (typeof chatState !== 'undefined' && chatState.isLoading) {
@@ -3696,7 +3717,8 @@ function updateVoiceStatusBar() {
   if (voiceState.speakReplies && _voiceSupportsTTS() && speechSynthesis.speaking) {
     bar.className = 'voice-status-bar tts';
     bar.style.display = 'flex';
-    bar.innerHTML = '<span class="vs-dot"></span><span>Speaking reply</span><span class="speaking-indicator"><span></span><span></span><span></span></span>' +
+    const hint = (inConvo && voiceState.listening) ? ' — speak to interrupt' : '';
+    bar.innerHTML = '<span class="vs-dot"></span><span>Speaking reply' + hint + '</span><span class="speaking-indicator"><span></span><span></span><span></span></span>' +
       (inConvo ? stopHandsFreeLink : '<button onclick="stopSpeaking()" style="margin-left:auto;background:transparent;border:0;color:inherit;font-size:.75rem;cursor:pointer;text-decoration:underline;">stop</button>');
     return;
   }
