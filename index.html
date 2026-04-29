@@ -3710,6 +3710,31 @@ function updateVoiceStatusBar() {
   bar.innerHTML = '';
 }
 
+/* Auto-retry Groq on transient failures (5xx / network).
+   Permanent errors (auth, rate limit, no key) are passed straight through. */
+async function callGroqWithToolsRetry(messages, systemPrompt) {
+  const maxAttempts = 3;
+  let lastErr;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await callGroqWithTools(messages, systemPrompt);
+    } catch (e) {
+      lastErr = e;
+      const msg = e?.message || '';
+      // Don't retry on permanent / actionable errors
+      const permanent = /NO_GROQ_KEY|RATE_LIMITED|GROQ_ERROR: 4(00|01|03|04|22)/.test(msg);
+      if (permanent) throw e;
+      if (attempt < maxAttempts) {
+        const wait = 600 * attempt;
+        console.warn(`Groq transient error (attempt ${attempt}/${maxAttempts}); retrying in ${wait}ms:`, msg);
+        await new Promise(r => setTimeout(r, wait));
+        continue;
+      }
+    }
+  }
+  throw lastErr;
+}
+
 async function sendChatMessage(userMsg) {
   chatState.messages.push({ role: 'user', content: userMsg });
   chatState.isLoading = true;
@@ -3740,36 +3765,37 @@ Always confirm in plain English what you logged, including the macro estimates y
   let usedFallback = false;
 
   try {
-    response = await callGroqWithTools(recentMessages, systemPrompt);
+    response = await callGroqWithToolsRetry(recentMessages, systemPrompt);
   } catch (groqErr) {
-    console.warn('Groq failed:', groqErr.message);
-    if (groqErr.message === 'NO_GROQ_KEY') {
-      // Try HF directly if no Groq key
-      try {
-        response = await callHuggingFace(recentMessages, systemPrompt);
-        usedFallback = true;
-      } catch (hfErr) {
-        response = 'I need an API key to work. Go to your profile or tap the gear icon in the chat header to set up your Groq or HuggingFace API key.';
-      }
-    } else if (groqErr.message === 'RATE_LIMITED' || groqErr.message.includes('429')) {
-      // Fall back to HuggingFace
-      try {
-        response = await callHuggingFace(recentMessages, systemPrompt);
-        usedFallback = true;
-      } catch (hfErr) {
-        if (hfErr.message === 'NO_HF_KEY') {
-          response = 'Groq is rate-limited right now and no HuggingFace key is set as backup. Add a HuggingFace API key in settings, or wait a moment and try again.';
+    const m = groqErr?.message || '';
+    console.warn('Groq failed:', m);
+    let errKind = 'transient';
+    if (m === 'NO_GROQ_KEY') errKind = 'no_key';
+    else if (m === 'RATE_LIMITED' || /429|GROQ_ERROR: 429/.test(m)) errKind = 'rate_limited';
+    else if (/GROQ_ERROR: 401|GROQ_ERROR: 403/.test(m)) errKind = 'bad_key';
+    else if (/GROQ_ERROR: 4\d{2}/.test(m)) errKind = 'bad_request';
+
+    if (errKind === 'no_key') {
+      try { response = await callHuggingFace(recentMessages, systemPrompt); usedFallback = true; }
+      catch { response = 'I need an API key to work. Tap the gear icon in the chat header and paste a Groq or HuggingFace key.'; }
+    } else if (errKind === 'bad_key') {
+      response = 'Your Groq API key was rejected. Open chat settings (gear icon) and paste a fresh one from console.groq.com/keys.';
+    } else if (errKind === 'rate_limited') {
+      try { response = await callHuggingFace(recentMessages, systemPrompt); usedFallback = true; }
+      catch (hfErr) {
+        if (hfErr?.message === 'NO_HF_KEY') {
+          response = 'Hit Groq\'s rate limit (free tier is 30 requests/minute). Wait ~30 seconds and try again, or add a HuggingFace key as backup in settings.';
         } else {
-          response = 'Both Groq and HuggingFace are unavailable right now. Please try again in a moment.';
+          response = 'Both Groq and HuggingFace hit rate limits. Wait a moment and try again.';
         }
       }
+    } else if (errKind === 'bad_request') {
+      response = 'The AI rejected this request (often happens with very long messages). Try shortening your last message.';
     } else {
-      // Other Groq error — try HF
-      try {
-        response = await callHuggingFace(recentMessages, systemPrompt);
-        usedFallback = true;
-      } catch (hfErr) {
-        response = 'Sorry, I ran into an issue connecting to the AI service. Check your API keys in settings and try again.';
+      // transient: tried 3 retries already and still failed
+      try { response = await callHuggingFace(recentMessages, systemPrompt); usedFallback = true; }
+      catch (hfErr) {
+        response = 'Groq is having a brief hiccup and HuggingFace backup isn\'t set up. Try again in a few seconds — these usually clear up fast.';
       }
     }
   }
@@ -3779,7 +3805,11 @@ Always confirm in plain English what you logged, including the macro estimates y
   chatState.hasActiveConvo = true;
   renderChatMessages();
   try { updateVoiceStatusBar(); } catch {}
-  try { speakReplyText(response); } catch (e) { console.warn('TTS failed', e); }
+  try {
+    // Don't speak our own error messages aloud — they're cosmetic noise in voice/conversation mode.
+    const looksLikeOurError = /API key|rate limit|hiccup|rejected|tap the gear icon|Try again|Sorry, I ran into/i.test(response || '');
+    if (!looksLikeOurError) speakReplyText(response);
+  } catch (e) { console.warn('TTS failed', e); }
 }
 
 // ---- Render chat messages into the container ----
