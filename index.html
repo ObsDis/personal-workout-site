@@ -216,6 +216,25 @@
     .bottom-nav a:not([href="#/chat"]) svg { width:20px; height:20px; }
   }
 
+  /* ===== VOICE CHAT ===== */
+  #chatMicBtn { background:var(--bg-elevated) !important; color:var(--text-secondary) !important; border:1px solid var(--border) !important; }
+  #chatMicBtn:hover { background:var(--border) !important; color:var(--text) !important; }
+  #chatMicBtn.listening { background:#dc2626 !important; color:#fff !important; border-color:#dc2626 !important; animation:micPulse 1.4s ease-in-out infinite; }
+  @keyframes micPulse {
+    0%, 100% { box-shadow:0 0 0 0 rgba(220,38,38,.55); }
+    70% { box-shadow:0 0 0 14px rgba(220,38,38,0); }
+  }
+  #chatTTSBtn { background:none; border:0; color:var(--text-muted); cursor:pointer; padding:.25rem; }
+  #chatTTSBtn.on { color:var(--accent); }
+  .voice-status-bar { padding:.375rem 1rem; background:rgba(220,38,38,.12); border-top:1px solid rgba(220,38,38,.3); color:#fca5a5; font-size:.8125rem; display:flex; align-items:center; gap:.5rem; }
+  .voice-status-bar.tts { background:rgba(16,185,129,.12); border-top-color:rgba(16,185,129,.3); color:#6ee7b7; }
+  .voice-status-bar .vs-dot { width:.5rem; height:.5rem; border-radius:50%; background:currentColor; animation:micPulse 1s infinite; }
+  .speaking-indicator { display:inline-flex; gap:2px; margin-left:.375rem; }
+  .speaking-indicator span { width:3px; height:10px; background:currentColor; border-radius:2px; animation:speakBar 1s ease-in-out infinite; }
+  .speaking-indicator span:nth-child(2) { animation-delay:.15s; }
+  .speaking-indicator span:nth-child(3) { animation-delay:.3s; }
+  @keyframes speakBar { 0%,100%{height:4px} 50%{height:14px} }
+
 /* ===== UTILITIES ===== */
   .hide { display:none !important; }
   .scroll-smooth { scroll-behavior:smooth; }
@@ -3357,6 +3376,180 @@ async function callHuggingFace(messages, systemPrompt) {
 }
 
 // ---- Send message (Groq primary, HF fallback) ----
+/* =========================================================
+   VOICE I/O (Web Speech API)
+   ========================================================= */
+
+const voiceState = {
+  listening: false,
+  speakReplies: localStorage.getItem('CHAT_TTS') === '1',
+  recognition: null,
+  utterance: null,
+  voicesLoaded: false,
+  preferredVoice: null,
+};
+
+function _voiceSupportsSTT() {
+  return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+}
+function _voiceSupportsTTS() {
+  return !!window.speechSynthesis;
+}
+
+function _loadVoices() {
+  if (!_voiceSupportsTTS()) return;
+  const pick = () => {
+    const voices = speechSynthesis.getVoices();
+    if (!voices.length) return false;
+    voiceState.voicesLoaded = true;
+    voiceState.preferredVoice =
+      voices.find(v => /en-US/i.test(v.lang) && /Samantha|Karen|Aaron|Nicky/.test(v.name)) ||
+      voices.find(v => /en-US/i.test(v.lang) && v.name.toLowerCase().includes('google')) ||
+      voices.find(v => v.lang.startsWith('en-')) ||
+      voices[0];
+    return true;
+  };
+  if (!pick()) {
+    speechSynthesis.addEventListener('voiceschanged', pick, { once: true });
+  }
+}
+_loadVoices();
+
+// Expose voice helpers for inline onclick handlers in the chat header
+if (typeof window !== 'undefined') {
+  window.toggleChatTTS = toggleChatTTS;
+  window.stopSpeaking = stopSpeaking;
+  window.toggleVoiceInput = toggleVoiceInput;
+  window.showChatSettings = (typeof showChatSettings !== 'undefined') ? showChatSettings : window.showChatSettings;
+}
+
+function speakReplyText(text) {
+  if (!voiceState.speakReplies || !_voiceSupportsTTS() || !text) return;
+  // strip markdown punctuation that doesn't read aloud well
+  const clean = text
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/[*_`]+/g, '')
+    .replace(/\[(.+?)\]\(.+?\)/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!clean) return;
+  try { speechSynthesis.cancel(); } catch {}
+  const u = new SpeechSynthesisUtterance(clean);
+  u.lang = 'en-US'; u.rate = 1.05; u.pitch = 1.0;
+  if (voiceState.preferredVoice) u.voice = voiceState.preferredVoice;
+  u.onend = () => updateVoiceStatusBar();
+  u.onerror = () => updateVoiceStatusBar();
+  voiceState.utterance = u;
+  speechSynthesis.speak(u);
+  updateVoiceStatusBar();
+}
+
+function stopSpeaking() {
+  if (!_voiceSupportsTTS()) return;
+  try { speechSynthesis.cancel(); } catch {}
+  voiceState.utterance = null;
+  updateVoiceStatusBar();
+}
+
+function toggleChatTTS() {
+  voiceState.speakReplies = !voiceState.speakReplies;
+  localStorage.setItem('CHAT_TTS', voiceState.speakReplies ? '1' : '0');
+  if (!voiceState.speakReplies) stopSpeaking();
+  // refresh button state
+  const btn = document.getElementById('chatTTSBtn');
+  if (btn) {
+    btn.classList.toggle('on', voiceState.speakReplies);
+    btn.title = voiceState.speakReplies ? 'Voice replies: ON (tap to mute)' : 'Voice replies: OFF (tap to enable)';
+  }
+  toast(voiceState.speakReplies ? 'Voice replies on' : 'Voice replies off');
+}
+
+function toggleVoiceInput() {
+  // If currently listening, stop (will auto-send via onend if there is content)
+  if (voiceState.listening && voiceState.recognition) {
+    try { voiceState.recognition.stop(); } catch {}
+    return;
+  }
+  if (!_voiceSupportsSTT()) {
+    toast('Voice input not supported in this browser. Try Chrome on desktop or Safari on iOS.', 'error');
+    return;
+  }
+  // Stop any TTS that's currently speaking
+  stopSpeaking();
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const rec = new SR();
+  rec.continuous = false;
+  rec.interimResults = true;
+  rec.lang = 'en-US';
+  const input = document.getElementById('chatInput');
+  const micBtn = document.getElementById('chatMicBtn');
+  let finalText = '';
+  let touched = false;
+
+  rec.onstart = () => {
+    voiceState.listening = true;
+    micBtn?.classList.add('listening');
+    updateVoiceStatusBar();
+  };
+  rec.onresult = (e) => {
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) finalText += t;
+      else interim += t;
+    }
+    touched = true;
+    if (input) {
+      input.value = (finalText + interim).trim();
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 128) + 'px';
+    }
+  };
+  rec.onerror = (e) => {
+    if (e.error === 'no-speech') {
+      // benign - just close out without complaining
+    } else if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      toast('Microphone permission denied.', 'error');
+    } else {
+      toast('Voice error: ' + e.error, 'error');
+    }
+  };
+  rec.onend = () => {
+    voiceState.listening = false;
+    voiceState.recognition = null;
+    micBtn?.classList.remove('listening');
+    updateVoiceStatusBar();
+    if (touched && input?.value.trim()) {
+      // Auto-send what was transcribed
+      handleChatSend();
+    }
+  };
+
+  voiceState.recognition = rec;
+  try { rec.start(); }
+  catch (e) { toast('Could not start voice input: ' + e.message, 'error'); }
+}
+
+function updateVoiceStatusBar() {
+  const bar = document.getElementById('voiceStatusBar');
+  if (!bar) return;
+  if (voiceState.listening) {
+    bar.className = 'voice-status-bar';
+    bar.style.display = 'flex';
+    bar.innerHTML = '<span class="vs-dot"></span><span>Listening — tap mic again to stop and send</span>';
+    return;
+  }
+  if (voiceState.speakReplies && _voiceSupportsTTS() && speechSynthesis.speaking) {
+    bar.className = 'voice-status-bar tts';
+    bar.style.display = 'flex';
+    bar.innerHTML = '<span class="vs-dot"></span><span>Speaking reply</span><span class="speaking-indicator"><span></span><span></span><span></span></span><button onclick="stopSpeaking()" style="margin-left:auto;background:transparent;border:0;color:inherit;font-size:.75rem;cursor:pointer;text-decoration:underline;">stop</button>';
+    return;
+  }
+  bar.style.display = 'none';
+  bar.innerHTML = '';
+}
+
 async function sendChatMessage(userMsg) {
   chatState.messages.push({ role: 'user', content: userMsg });
   chatState.isLoading = true;
@@ -3421,6 +3614,8 @@ Always confirm in plain English what you logged, including the macro estimates y
   chatState.isLoading = false;
   chatState.hasActiveConvo = true;
   renderChatMessages();
+  // If TTS is enabled, read the reply aloud
+  try { speakReplyText(response); } catch (e) { console.warn('TTS failed', e); }
 }
 
 // ---- Render chat messages into the container ----
@@ -3545,13 +3740,20 @@ function renderChat() {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         </div>
         <h2>Workout Assistant</h2>
+        <button id="chatTTSBtn" onclick="toggleChatTTS()" title="Voice replies" aria-label="Toggle voice replies">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+        </button>
         <button onclick="showChatSettings()" style="background:none;border:0;color:var(--text-muted);cursor:pointer;padding:.25rem;" title="Settings">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
         </button>
       </div>
       <div class="chat-messages" id="chatMessages"></div>
+      <div id="voiceStatusBar" class="voice-status-bar" style="display:none;"></div>
       <div class="chat-input-area">
         <textarea id="chatInput" rows="1" placeholder="Ask me anything..."></textarea>
+        <button id="chatMicBtn" type="button" title="Voice input (tap to start, tap again to send)" aria-label="Voice input">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+        </button>
         <button id="chatSendBtn" type="button">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
         </button>
@@ -3566,6 +3768,28 @@ function wireChatEvents() {
   const input = document.getElementById('chatInput');
   const sendBtn = document.getElementById('chatSendBtn');
   if (!input || !sendBtn) return;
+
+  // Voice input mic button
+  const micBtn = document.getElementById('chatMicBtn');
+  if (micBtn) {
+    if (!_voiceSupportsSTT()) {
+      micBtn.style.opacity = '0.4';
+      micBtn.title = 'Voice input not supported in this browser';
+    }
+    micBtn.addEventListener('click', toggleVoiceInput);
+  }
+  // Voice output toggle button — sync class to current state on render
+  const ttsBtn = document.getElementById('chatTTSBtn');
+  if (ttsBtn) {
+    if (!_voiceSupportsTTS()) {
+      ttsBtn.style.opacity = '0.4';
+      ttsBtn.title = 'Voice replies not supported in this browser';
+    } else {
+      ttsBtn.classList.toggle('on', voiceState.speakReplies);
+      ttsBtn.title = voiceState.speakReplies ? 'Voice replies: ON (tap to mute)' : 'Voice replies: OFF (tap to enable)';
+    }
+  }
+  updateVoiceStatusBar();
 
   // Send on button tap/click (works on mobile + desktop)
   sendBtn.addEventListener('click', handleChatSend);
@@ -3606,6 +3830,7 @@ function wireChatEvents() {
 
 // ---- Handle send button ----
 function handleChatSend() {
+  try { stopSpeaking(); } catch {}
   const input = document.getElementById('chatInput');
   if (!input) return;
   const msg = input.value.trim();
