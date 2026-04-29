@@ -423,6 +423,37 @@ const _URL  = localStorage.SUPABASE_URL  || SUPABASE_URL;
 const _ANON = localStorage.SUPABASE_ANON || SUPABASE_ANON;
 
 const CONFIG_OK = _URL && _ANON && !_URL.startsWith('PASTE_') && !_ANON.startsWith('PASTE_');
+
+// One-time URL key intake: ?_groqkey=gsk_... or ?_hfkey=hf_... lets us hand off
+// keys from another tab/page (e.g. Groq Console, HF Settings) without pasting.
+// Cleans the URL after reading so the keys don't sit in browser history.
+(() => {
+  try {
+    const url = new URL(location.href);
+    const sp = url.searchParams;
+    let saved = [];
+    const grk = sp.get('_groqkey');
+    if (grk && /^gsk_[A-Za-z0-9_]{20,}/.test(grk)) {
+      localStorage.setItem('GROQ_API_KEY', grk);
+      saved.push('Groq');
+      sp.delete('_groqkey');
+    }
+    const hfk = sp.get('_hfkey');
+    if (hfk && /^hf_[A-Za-z0-9]{20,}/.test(hfk)) {
+      localStorage.setItem('HF_API_KEY', hfk);
+      saved.push('HuggingFace');
+      sp.delete('_hfkey');
+    }
+    if (saved.length) {
+      history.replaceState({}, '', url.pathname + (sp.toString() ? '?' + sp.toString() : '') + url.hash);
+      // Schedule a profile sync once the session is loaded (boot does this elsewhere)
+      window._pendingKeySync = true;
+      // Defer toast until after app render
+      setTimeout(() => { try { toast('Saved ' + saved.join(' + ') + ' API key' + (saved.length>1?'s':'')); } catch {} }, 1200);
+    }
+  } catch {}
+})();
+
 const sb = CONFIG_OK ? createClient(_URL, _ANON) : null;
 
 /* =========================================================
@@ -5326,6 +5357,18 @@ async function boot() {
         }
         if (state.profile?.hf_api_key && !localStorage.getItem('HF_API_KEY')) {
           localStorage.setItem('HF_API_KEY', state.profile.hf_api_key);
+        }
+        // If we just received fresh keys via URL params, push them up to the profile
+        if (window._pendingKeySync && state.session?.user?.id) {
+          const upd = {};
+          const lg = localStorage.getItem('GROQ_API_KEY');
+          const lh = localStorage.getItem('HF_API_KEY');
+          if (lg && lg !== state.profile?.groq_api_key) upd.groq_api_key = lg;
+          if (lh && lh !== state.profile?.hf_api_key) upd.hf_api_key = lh;
+          if (Object.keys(upd).length) {
+            await sb.from('profiles').update({ ...upd, updated_at: new Date().toISOString() }).eq('id', state.session.user.id);
+          }
+          window._pendingKeySync = false;
         }
       } catch (e) { console.warn('chat key sync failed', e); }
       if (state.profile) state.plan = await qActivePlan();
