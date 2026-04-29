@@ -788,6 +788,7 @@ function topbar() {
     history: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3 8a9 9 0 1 1 1.636 5.196"/><circle cx="12" cy="12" r="1"/></svg>`,
     chat: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><circle cx="9" cy="10" r="1" fill="currentColor"/><circle cx="12" cy="10" r="1" fill="currentColor"/><circle cx="15" cy="10" r="1" fill="currentColor"/></svg>`,
     profile: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+    nutrition: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C9 2 6 5 6 9c0 4 3 7 6 13 3-6 6-9 6-13 0-4-3-7-6-7z"/><path d="M12 9c-1.5 0-3 1.5-3 3"/></svg>`,
   };
 
   const topLink = (h, label) => `<a href="${h}" class="${ac(h)}" style="padding:.5rem .875rem;border-radius:.5rem;font-size:.875rem;font-weight:500;text-decoration:none;">${label}</a>`;
@@ -800,6 +801,7 @@ function topbar() {
       <div style="display:flex;align-items:center;gap:.25rem;">
         ${topLink('#/', 'Today')}
         ${topLink('#/plan', 'Plan')}
+        ${topLink('#/nutrition', 'Nutrition')}
         ${topLink('#/chat', 'Chat')}
         ${topLink('#/progress', 'Progress')}
         ${topLink('#/history', 'History')}
@@ -810,9 +812,9 @@ function topbar() {
   <nav class="bottom-nav">
     ${bottomLink('#/', icons.today, 'Today')}
     ${bottomLink('#/plan', icons.plan, 'Plan')}
-    ${bottomLink('#/chat', icons.chat, 'Chat')}
+    ${bottomLink('#/nutrition', icons.nutrition, 'Food')}
     ${bottomLink('#/progress', icons.progress, 'Progress')}
-    ${bottomLink('#/history', icons.history, 'History')}
+    ${bottomLink('#/chat', icons.chat, 'Chat')}
     ${bottomLink('#/profile', icons.profile, 'Profile')}
   </nav>`;
 }
@@ -3352,6 +3354,820 @@ function updateChatBubble() {
 const _origRoute = null; // We'll wrap the hashchange listener below
 
 /* =========================================================
+   NUTRITION & MEAL PLANS
+   ========================================================= */
+
+async function qFoodLogsForDate(d) {
+  const { data, error } = await sb.from('food_logs').select('*').eq('log_date', d).order('logged_at', { ascending: true });
+  if (error) { console.error(error); return []; }
+  return data || [];
+}
+async function qSaveFoodLog(row) {
+  const uid = state.session.user.id;
+  const payload = { user_id: uid, ...row };
+  const { data, error } = await sb.from('food_logs').insert(payload).select().single();
+  if (error) throw error;
+  return data;
+}
+async function qDeleteFoodLog(id) {
+  const { error } = await sb.from('food_logs').delete().eq('id', id);
+  if (error) throw error;
+}
+async function qFavorites(limit = 30) {
+  const { data, error } = await sb.from('food_favorites')
+    .select('*').order('last_used_at', { ascending: false, nullsFirst: false }).limit(limit);
+  if (error) { console.error(error); return []; }
+  return data || [];
+}
+async function qBumpFavorite(food) {
+  const uid = state.session.user.id;
+  if (!food.food_name) return;
+  const { data: existing } = await sb.from('food_favorites').select('id, use_count')
+    .match({ user_id: uid, food_name: food.food_name, brand: food.brand || null }).maybeSingle();
+  if (existing?.id) {
+    await sb.from('food_favorites').update({ use_count: (existing.use_count || 0) + 1, last_used_at: new Date().toISOString() }).eq('id', existing.id);
+  } else {
+    await sb.from('food_favorites').insert({
+      user_id: uid,
+      food_name: food.food_name, brand: food.brand || null,
+      serving_size_g: food.serving_size_g, calories: food.calories,
+      protein_g: food.protein_g, carbs_g: food.carbs_g, fat_g: food.fat_g, fiber_g: food.fiber_g,
+      barcode: food.barcode || null, use_count: 1, last_used_at: new Date().toISOString(),
+    });
+  }
+}
+
+async function qMealPlans() {
+  const { data, error } = await sb.from('meal_plans').select('*, meal_plan_items(*)').order('created_at', { ascending: false });
+  if (error) { console.error(error); return []; }
+  return data || [];
+}
+async function qSaveMealPlan({ id, name, description, kcal_target, protein_target_g, carbs_target_g, fat_target_g, items, is_active }) {
+  const uid = state.session.user.id;
+  let plan;
+  if (id) {
+    const { data, error } = await sb.from('meal_plans').update({ name, description, kcal_target, protein_target_g, carbs_target_g, fat_target_g, is_active }).eq('id', id).select().single();
+    if (error) throw error; plan = data;
+    await sb.from('meal_plan_items').delete().eq('plan_id', id);
+  } else {
+    const { data, error } = await sb.from('meal_plans').insert({ user_id: uid, name, description, kcal_target, protein_target_g, carbs_target_g, fat_target_g, is_active: is_active || false }).select().single();
+    if (error) throw error; plan = data;
+  }
+  if (items?.length) {
+    const rows = items.map((it, idx) => ({ plan_id: plan.id, order_idx: idx, ...it }));
+    const { error } = await sb.from('meal_plan_items').insert(rows);
+    if (error) throw error;
+  }
+  if (is_active) {
+    await sb.from('meal_plans').update({ is_active: false }).neq('id', plan.id).eq('user_id', uid);
+  }
+  return plan;
+}
+async function qDeleteMealPlan(id) { const { error } = await sb.from('meal_plans').delete().eq('id', id); if (error) throw error; }
+
+const round1 = (n) => n == null || isNaN(n) ? null : Math.round(Number(n) * 10) / 10;
+
+async function lookupBarcode(barcode) {
+  const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('OpenFoodFacts: HTTP ' + r.status);
+  const data = await r.json();
+  if (data.status !== 1 && !data.product) throw new Error('Product not found in OpenFoodFacts');
+  const p = data.product || {};
+  const nut = p.nutriments || {};
+  const serving = Number(p.serving_quantity) || 100;
+  const factor = serving / 100;
+  return {
+    food_name: p.product_name || p.generic_name || 'Unknown',
+    brand: p.brands || null,
+    serving_size_g: serving,
+    calories: round1(nut['energy-kcal_100g'] * factor || (nut['energy-kcal'] || 0)),
+    protein_g: round1((nut['proteins_100g'] || 0) * factor),
+    carbs_g:   round1((nut['carbohydrates_100g'] || 0) * factor),
+    fat_g:     round1((nut['fat_100g'] || 0) * factor),
+    fiber_g:   round1((nut['fiber_100g'] || 0) * factor),
+    barcode,
+    source: 'openfoodfacts',
+  };
+}
+async function searchFoodOFF(query, limit = 10) {
+  const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=${limit}`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('OpenFoodFacts search failed');
+  const data = await r.json();
+  return (data.products || []).map(p => {
+    const nut = p.nutriments || {};
+    const serving = Number(p.serving_quantity) || 100;
+    const factor = serving / 100;
+    return {
+      food_name: p.product_name || p.generic_name || 'Unknown',
+      brand: p.brands || null,
+      serving_size_g: serving,
+      calories: round1(nut['energy-kcal_100g'] * factor || (nut['energy-kcal'] || 0)),
+      protein_g: round1((nut['proteins_100g'] || 0) * factor),
+      carbs_g:   round1((nut['carbohydrates_100g'] || 0) * factor),
+      fat_g:     round1((nut['fat_100g'] || 0) * factor),
+      fiber_g:   round1((nut['fiber_100g'] || 0) * factor),
+      barcode: p.code || null,
+      source: 'openfoodfacts',
+    };
+  });
+}
+
+async function aiEstimateFoodFromPhoto(file) {
+  const key = localStorage.getItem('GROQ_API_KEY');
+  if (!key) throw new Error('No Groq API key. Open chat settings (gear icon) and paste your key first.');
+  const dataUrl = await new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(fr.result);
+    fr.onerror = rej;
+    fr.readAsDataURL(file);
+  });
+  const body = {
+    model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Identify the food in this image and estimate calories and macros for the visible portion. Reply with JSON only, no prose: {"food_name":"...","brand":null,"serving_size_g":<grams>,"calories":<kcal>,"protein_g":<g>,"carbs_g":<g>,"fat_g":<g>,"fiber_g":<g>,"confidence":"low|medium|high","caveat":"<one short note about portion uncertainty>"}.' },
+        { type: 'image_url', image_url: { url: dataUrl } }
+      ]
+    }],
+    response_format: { type: 'json_object' },
+    max_tokens: 400,
+    temperature: 0.2
+  };
+  const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST', headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+  });
+  const text = await r.text();
+  if (!r.ok) throw new Error('Vision API error ' + r.status + ': ' + text.slice(0, 200));
+  const j = JSON.parse(text);
+  let parsed;
+  try { parsed = JSON.parse(j.choices[0].message.content); } catch (e) { throw new Error('Vision response not JSON'); }
+  return { ...parsed, source: 'ai_photo' };
+}
+
+async function scanBarcodeFromVideo() {
+  if (!('BarcodeDetector' in window)) throw new Error('BarcodeDetector not supported. Use Chrome on desktop or Android, or type the barcode manually.');
+  const formats = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'];
+  const detector = new BarcodeDetector({ formats });
+  const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    video.srcObject = stream; video.setAttribute('playsinline', 'true'); video.style.cssText = 'width:100%;border-radius:.625rem;background:#000;';
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;padding:1rem;';
+    overlay.innerHTML = '<div style="font-size:.875rem;color:#fafafa;">Point camera at barcode</div>';
+    overlay.appendChild(video);
+    const cancel = document.createElement('button'); cancel.className = 'btn btn-ghost'; cancel.textContent = 'Cancel'; cancel.style.minWidth = '160px';
+    overlay.appendChild(cancel);
+    document.body.appendChild(overlay);
+    video.play();
+    let stopped = false;
+    const stop = () => { stopped = true; stream.getTracks().forEach(t => t.stop()); overlay.remove(); };
+    cancel.onclick = () => { stop(); reject(new Error('Cancelled')); };
+    const tick = async () => {
+      if (stopped) return;
+      try { const found = await detector.detect(video); if (found && found.length) { stop(); resolve(found[0].rawValue); return; } } catch {}
+      requestAnimationFrame(tick);
+    };
+    setTimeout(tick, 500);
+  });
+}
+
+function computeTargets({ sex, weight_lbs, height_ft, height_in, age, activity, goal }) {
+  const kg = (Number(weight_lbs) || 0) * 0.45359237;
+  const cm = ((Number(height_ft) || 0) * 12 + (Number(height_in) || 0)) * 2.54;
+  let bmr = 10 * kg + 6.25 * cm - 5 * (Number(age) || 30);
+  bmr += sex === 'female' ? -161 : 5;
+  const act = { sedentary:1.2, light:1.375, moderate:1.55, active:1.725, very_active:1.9 }[activity || 'moderate'] || 1.55;
+  const tdee = bmr * act;
+  let kcal = tdee;
+  if (goal === 'lose_weight') kcal = tdee - 500;
+  else if (goal === 'build_muscle' || goal === 'gain_strength') kcal = tdee + 250;
+  let pp = 0.30, cp = 0.40, fp = 0.30;
+  if (goal === 'lose_weight') { pp = 0.35; cp = 0.35; fp = 0.30; }
+  if (goal === 'maintain' || goal === 'general_fitness') { pp = 0.25; cp = 0.50; fp = 0.25; }
+  return {
+    kcal: Math.round(kcal),
+    protein_g: Math.round((kcal * pp) / 4),
+    carbs_g:   Math.round((kcal * cp) / 4),
+    fat_g:     Math.round((kcal * fp) / 9),
+    bmr: Math.round(bmr),
+    tdee: Math.round(tdee),
+  };
+}
+
+async function renderNutrition() {
+  const hash = location.hash || '#/nutrition';
+  const sub = (hash.split('/')[2] || 'today').toLowerCase();
+  const tabHref = (k) => k === 'today' ? '#/nutrition' : `#/nutrition/${k}`;
+  const tabBtn = (k, label) => `<a href="${tabHref(k)}" class="prog-tab ${sub===k?'active':''}">${label}</a>`;
+  const tabsHtml = `
+    <div class="prog-tabs">
+      ${tabBtn('today',   'Today')}
+      ${tabBtn('add',     'Add food')}
+      ${tabBtn('targets', 'Targets')}
+      ${tabBtn('meals',   'Meal plans')}
+    </div>`;
+  appEl().innerHTML = shell(`
+    <div class="mb-3">
+      <div class="section-label" style="margin-bottom:.25rem">Nutrition</div>
+      <h1 class="text-3xl font-extrabold tracking-tight">${sub==='today'?'Today':sub==='add'?'Add food':sub==='targets'?'Daily targets':'Meal plans'}</h1>
+    </div>
+    ${tabsHtml}
+    <div id="nut-body" style="margin-top:1rem"><div style="color:var(--text-muted);padding:1rem 0;">Loading…</div></div>
+  `);
+  if (sub === 'today')   return nutTodayView();
+  if (sub === 'add')     return nutAddView();
+  if (sub === 'targets') return nutTargetsView();
+  if (sub === 'meals')   return nutMealsView();
+}
+
+async function nutTodayView() {
+  const body = document.getElementById('nut-body'); if (!body) return;
+  const today = new Date().toISOString().slice(0, 10);
+  const logs = await qFoodLogsForDate(today);
+  const tot = logs.reduce((a, l) => ({
+    kcal: a.kcal + Number(l.calories || 0),
+    p: a.p + Number(l.protein_g || 0),
+    c: a.c + Number(l.carbs_g || 0),
+    f: a.f + Number(l.fat_g || 0),
+    fib: a.fib + Number(l.fiber_g || 0),
+  }), { kcal:0, p:0, c:0, f:0, fib:0 });
+  const targets = state.profile || {};
+  const bar = (label, value, target, color, suffix) => {
+    const pct = target ? Math.min(100, Math.round((value / target) * 100)) : 0;
+    return `<div style="margin-bottom:.625rem;">
+      <div style="display:flex;justify-content:space-between;font-size:.8125rem;margin-bottom:.25rem;">
+        <span style="color:var(--text-secondary);font-weight:500;">${label}</span>
+        <span style="font-variant-numeric:tabular-nums;"><strong>${fmtWt(value)}</strong>${target?` / ${target}${suffix||''}`:''}</span>
+      </div>
+      <div style="height:6px;background:var(--bg);border-radius:3px;overflow:hidden;">
+        <div style="height:100%;width:${pct}%;background:${color};transition:width .3s;"></div>
+      </div>
+    </div>`;
+  };
+
+  const slotGroup = (slot, label) => {
+    const items = logs.filter(l => (l.meal_slot || 'snack') === slot);
+    if (items.length === 0) return '';
+    const slotKcal = items.reduce((a, l) => a + Number(l.calories||0), 0);
+    return `<div class="card" style="margin-bottom:.75rem;padding:1rem;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.5rem;">
+        <div style="font-weight:600;">${label}</div>
+        <div style="color:var(--text-muted);font-size:.75rem;">${fmtWt(slotKcal)} kcal</div>
+      </div>
+      ${items.map(l => `
+        <div class="exercise-row" style="padding:.5rem 0;">
+          <div style="min-width:0;">
+            <div class="exercise-name" style="font-size:.9375rem;">${esc(l.food_name)} ${l.brand?`<span style="color:var(--text-muted);font-weight:400;font-size:.75rem;">· ${esc(l.brand)}</span>`:''}</div>
+            <div style="color:var(--text-muted);font-size:.7rem;margin-top:2px;">${l.servings && l.servings!=1?fmtWt(l.servings)+' × ':''}${l.serving_size_g?fmtWt(l.serving_size_g)+'g · ':''}P ${fmtWt(l.protein_g)}g · C ${fmtWt(l.carbs_g)}g · F ${fmtWt(l.fat_g)}g</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:.5rem;">
+            <span style="font-weight:700;font-variant-numeric:tabular-nums;font-size:.9375rem;">${fmtWt(l.calories)}</span>
+            <button data-id="${l.id}" class="fl-del" style="background:transparent;border:0;color:var(--text-muted);cursor:pointer;font-size:1.125rem;padding:.25rem;" title="Remove">×</button>
+          </div>
+        </div>`).join('')}
+    </div>`;
+  };
+
+  body.innerHTML = `
+    <div class="card" style="margin-bottom:1rem;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.75rem;">
+        <div class="section-label" style="margin:0;">Today</div>
+        <div style="font-size:1.5rem;font-weight:700;font-variant-numeric:tabular-nums;">${fmtWt(tot.kcal)}${targets.kcal_target?`<span style="color:var(--text-muted);font-size:.875rem;font-weight:500;"> / ${targets.kcal_target}</span>`:''} <span style="color:var(--text-muted);font-size:.75rem;font-weight:500;">kcal</span></div>
+      </div>
+      ${bar('Protein', tot.p, targets.protein_target_g, '#fca5a5', 'g')}
+      ${bar('Carbs',   tot.c, targets.carbs_target_g,   '#93c5fd', 'g')}
+      ${bar('Fat',     tot.f, targets.fat_target_g,     '#fcd34d', 'g')}
+      ${tot.fib?bar('Fiber',   tot.fib, null, '#86efac', 'g'):''}
+    </div>
+
+    <div style="display:flex;gap:.5rem;margin-bottom:1rem;">
+      <a href="#/nutrition/add" class="btn btn-primary" style="flex:1;">+ Add food</a>
+      ${(targets.kcal_target)?'':'<a href="#/nutrition/targets" class="btn btn-ghost">Set targets</a>'}
+    </div>
+
+    ${logs.length === 0 ? `<div class="card" style="color:var(--text-muted);text-align:center;">No food logged today yet.</div>` : `
+      ${slotGroup('breakfast','Breakfast')}
+      ${slotGroup('lunch','Lunch')}
+      ${slotGroup('dinner','Dinner')}
+      ${slotGroup('snack','Snacks')}
+    `}
+  `;
+  document.querySelectorAll('.fl-del').forEach(el => el.addEventListener('click', async () => {
+    if (!confirm('Remove this entry?')) return;
+    try { await qDeleteFoodLog(el.dataset.id); renderNutrition(); }
+    catch (e) { console.error(e); toast('Delete failed', 'error'); }
+  }));
+}
+
+async function nutAddView() {
+  const body = document.getElementById('nut-body'); if (!body) return;
+  let mode = 'manual';
+  let draft = { food_name:'', brand:'', serving_size_g:'', servings:1, calories:'', protein_g:'', carbs_g:'', fat_g:'', fiber_g:'', barcode:'', source:'manual', meal_slot:'snack' };
+  let searchResults = [];
+  let favorites = await qFavorites(20);
+  const numOrNull = (v) => (v === '' || v == null) ? null : Number(v);
+
+  const slots = [
+    { v:'breakfast', l:'Breakfast' }, { v:'lunch', l:'Lunch' },
+    { v:'dinner', l:'Dinner' },       { v:'snack', l:'Snack' },
+  ];
+
+  const modeBtns = () => [
+    ['manual', 'Manual'],
+    ['barcode', 'Barcode'],
+    ['search', 'Search'],
+    ['photo', 'Photo (AI)'],
+  ].map(([k, l]) => `<button data-mode="${k}" class="add-mode" type="button" style="flex:1;padding:.5rem;background:${mode===k?'var(--accent)':'var(--bg-elevated)'};color:${mode===k?'#000':'var(--text)'};border:1px solid ${mode===k?'var(--accent)':'var(--border)'};border-radius:.5rem;font-weight:600;font-size:.8125rem;cursor:pointer;">${l}</button>`).join('');
+
+  const renderForm = () => {
+    const isAuto = ['barcode','search','photo'].includes(mode);
+    const formCard = `
+      <div class="card" style="margin-bottom:1rem;">
+        <label class="label">Meal</label>
+        <select id="nf_slot" class="input" style="margin-bottom:.625rem;">
+          ${slots.map(s => `<option value="${s.v}" ${draft.meal_slot===s.v?'selected':''}>${s.l}</option>`).join('')}
+        </select>
+        <label class="label">Food name</label>
+        <input id="nf_name" class="input" placeholder="e.g. Greek yogurt" value="${esc(draft.food_name)}" style="margin-bottom:.5rem;" />
+        <div class="form-grid cols-2-on-desktop" style="margin-bottom:.5rem;">
+          <div><label class="label">Brand (optional)</label><input id="nf_brand" class="input" value="${esc(draft.brand)}" /></div>
+          <div><label class="label">Serving (g)</label><input id="nf_serv" class="input" type="number" inputmode="decimal" step="0.1" value="${esc(draft.serving_size_g)}" /></div>
+        </div>
+        <div class="form-grid cols-2-on-desktop" style="margin-bottom:.5rem;">
+          <div><label class="label">Servings</label><input id="nf_servings" class="input" type="number" inputmode="decimal" step="0.5" value="${esc(draft.servings)}" /></div>
+          <div><label class="label">Calories</label><input id="nf_kcal" class="input" type="number" inputmode="decimal" step="0.1" value="${esc(draft.calories)}" /></div>
+        </div>
+        <div class="form-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:.5rem;">
+          <div><label class="label">Protein g</label><input id="nf_p" class="input" type="number" inputmode="decimal" step="0.1" value="${esc(draft.protein_g)}" /></div>
+          <div><label class="label">Carbs g</label><input id="nf_c" class="input" type="number" inputmode="decimal" step="0.1" value="${esc(draft.carbs_g)}" /></div>
+          <div><label class="label">Fat g</label><input id="nf_f" class="input" type="number" inputmode="decimal" step="0.1" value="${esc(draft.fat_g)}" /></div>
+        </div>
+        ${isAuto && draft.source ? `<div style="font-size:.7rem;color:var(--text-muted);margin-bottom:.5rem;">Source: ${esc(draft.source)}${draft.confidence?` · confidence: ${esc(draft.confidence)}`:''}${draft.caveat?` · ${esc(draft.caveat)}`:''}</div>` : ''}
+        <button id="nf_save" class="btn btn-primary" style="width:100%;">Save to today</button>
+      </div>`;
+
+    let modeUI = '';
+    if (mode === 'barcode') {
+      const btSupported = 'BarcodeDetector' in window;
+      modeUI = `<div class="card" style="margin-bottom:1rem;">
+        <div class="section-label" style="margin-bottom:.5rem;">Barcode</div>
+        <div style="display:flex;gap:.5rem;margin-bottom:.5rem;">
+          <input id="bc_input" class="input" inputmode="numeric" placeholder="Type barcode (12-13 digits)" style="flex:1;" />
+          ${btSupported ? `<button id="bc_scan" class="btn btn-ghost">Scan</button>` : ''}
+        </div>
+        <button id="bc_lookup" class="btn btn-primary" style="width:100%;">Look up</button>
+        ${!btSupported ? `<p style="font-size:.7rem;color:var(--text-muted);margin-top:.5rem;">Camera scanning needs Chrome on desktop or Android. On iOS, type the barcode manually.</p>` : ''}
+        <p style="font-size:.7rem;color:var(--text-muted);margin-top:.5rem;">Lookups powered by OpenFoodFacts (free, no auth).</p>
+        <div id="bc_status" style="font-size:.75rem;color:var(--text-muted);margin-top:.5rem;"></div>
+      </div>`;
+    } else if (mode === 'search') {
+      modeUI = `<div class="card" style="margin-bottom:1rem;">
+        <div class="section-label" style="margin-bottom:.5rem;">Search OpenFoodFacts</div>
+        <div style="display:flex;gap:.5rem;margin-bottom:.5rem;">
+          <input id="sr_q" class="input" placeholder="e.g. chobani plain yogurt" style="flex:1;" />
+          <button id="sr_go" class="btn btn-primary">Search</button>
+        </div>
+        <div id="sr_results"></div>
+      </div>`;
+    } else if (mode === 'photo') {
+      modeUI = `<div class="card" style="margin-bottom:1rem;">
+        <div class="section-label" style="margin-bottom:.5rem;">Photo (AI estimate)</div>
+        <input id="ph_file" type="file" accept="image/*" class="input" style="padding:.5rem;margin-bottom:.5rem;" />
+        <button id="ph_go" class="btn btn-primary" style="width:100%;">Identify with AI</button>
+        <p style="font-size:.7rem;color:var(--text-muted);margin-top:.5rem;line-height:1.4;">Uses your Groq vision API. Results are estimates — always edit numbers before saving. Won't be more accurate than 60-70% on portion size.</p>
+        <div id="ph_status" style="font-size:.75rem;color:var(--text-muted);margin-top:.5rem;"></div>
+      </div>`;
+    }
+
+    const favBlock = favorites.length === 0 ? '' : `
+      <div class="card">
+        <div class="section-label" style="margin-bottom:.5rem;">Recent / favorites</div>
+        ${favorites.map(f => `
+          <div class="exercise-row" style="padding:.5rem 0;">
+            <div style="min-width:0;">
+              <div class="exercise-name" style="font-size:.9375rem;">${esc(f.food_name)}</div>
+              <div style="color:var(--text-muted);font-size:.7rem;margin-top:2px;">${f.brand?esc(f.brand)+' · ':''}${f.serving_size_g?fmtWt(f.serving_size_g)+'g · ':''}${fmtWt(f.calories)} kcal · P${fmtWt(f.protein_g)}/C${fmtWt(f.carbs_g)}/F${fmtWt(f.fat_g)}</div>
+            </div>
+            <button data-id="${f.id}" class="fav-use btn btn-ghost" style="padding:.4rem .75rem;font-size:.8125rem;">+ Add</button>
+          </div>`).join('')}
+      </div>`;
+
+    body.innerHTML = `
+      <div style="display:flex;gap:.375rem;margin-bottom:1rem;">${modeBtns()}</div>
+      ${modeUI}
+      ${formCard}
+      ${favBlock}
+    `;
+    wireForm();
+  };
+
+  function bindDraft() {
+    const set = (id, key, num) => { const el = document.getElementById(id); if (el) el.addEventListener('input', e => draft[key] = num ? (e.target.value === '' ? '' : Number(e.target.value)) : e.target.value); };
+    set('nf_name', 'food_name'); set('nf_brand', 'brand');
+    set('nf_serv', 'serving_size_g', true); set('nf_servings', 'servings', true);
+    set('nf_kcal', 'calories', true); set('nf_p', 'protein_g', true); set('nf_c', 'carbs_g', true); set('nf_f', 'fat_g', true);
+    const slot = document.getElementById('nf_slot'); if (slot) slot.addEventListener('change', e => draft.meal_slot = e.target.value);
+  }
+
+  function wireForm() {
+    document.querySelectorAll('.add-mode').forEach(el => el.addEventListener('click', () => {
+      mode = el.dataset.mode; renderForm();
+    }));
+    bindDraft();
+
+    if (mode === 'barcode') {
+      const status = document.getElementById('bc_status');
+      const lookup = async () => {
+        const code = document.getElementById('bc_input').value.trim();
+        if (!code) { status.textContent = 'Enter a barcode.'; return; }
+        status.textContent = 'Looking up…';
+        try { const food = await lookupBarcode(code); Object.assign(draft, food); status.textContent = '✓ Found: ' + (food.food_name || 'Unknown'); renderForm(); }
+        catch (e) { status.textContent = '✗ ' + (e.message || 'Lookup failed'); }
+      };
+      document.getElementById('bc_lookup').addEventListener('click', lookup);
+      document.getElementById('bc_input').addEventListener('keydown', e => { if (e.key === 'Enter') lookup(); });
+      const scanBtn = document.getElementById('bc_scan');
+      if (scanBtn) scanBtn.addEventListener('click', async () => {
+        try {
+          status.textContent = 'Opening camera…';
+          const code = await scanBarcodeFromVideo();
+          document.getElementById('bc_input').value = code;
+          status.textContent = '✓ Scanned: ' + code + '. Looking up…';
+          const food = await lookupBarcode(code);
+          Object.assign(draft, food); status.textContent = '✓ Found: ' + food.food_name; renderForm();
+        } catch (e) { status.textContent = '✗ ' + e.message; }
+      });
+    }
+
+    if (mode === 'search') {
+      const go = async () => {
+        const q = document.getElementById('sr_q').value.trim();
+        const out = document.getElementById('sr_results');
+        if (!q) { out.innerHTML = ''; return; }
+        out.innerHTML = `<div style="color:var(--text-muted);font-size:.875rem;padding:.5rem 0;">Searching…</div>`;
+        try {
+          searchResults = await searchFoodOFF(q, 8);
+          if (searchResults.length === 0) { out.innerHTML = `<div style="color:var(--text-muted);font-size:.875rem;padding:.5rem 0;">No results.</div>`; return; }
+          out.innerHTML = searchResults.map((f, i) => `
+            <div class="exercise-row" style="padding:.5rem 0;">
+              <div style="min-width:0;">
+                <div class="exercise-name" style="font-size:.875rem;">${esc(f.food_name)}</div>
+                <div style="color:var(--text-muted);font-size:.7rem;margin-top:2px;">${f.brand?esc(f.brand)+' · ':''}${f.serving_size_g?fmtWt(f.serving_size_g)+'g · ':''}${fmtWt(f.calories)} kcal</div>
+              </div>
+              <button data-i="${i}" class="sr-use btn btn-ghost" style="padding:.35rem .65rem;font-size:.8125rem;">Use</button>
+            </div>`).join('');
+          out.querySelectorAll('.sr-use').forEach(el => el.addEventListener('click', () => {
+            Object.assign(draft, searchResults[Number(el.dataset.i)]); renderForm();
+          }));
+        } catch (e) { out.innerHTML = `<div style="color:var(--danger);font-size:.875rem;">${esc(e.message)}</div>`; }
+      };
+      document.getElementById('sr_go').addEventListener('click', go);
+      document.getElementById('sr_q').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+    }
+
+    if (mode === 'photo') {
+      const status = document.getElementById('ph_status');
+      document.getElementById('ph_go').addEventListener('click', async () => {
+        const file = document.getElementById('ph_file').files?.[0];
+        if (!file) { status.textContent = 'Pick a photo first.'; return; }
+        if (file.size > 4 * 1024 * 1024) { status.textContent = 'Photo too large (4MB max for AI).'; return; }
+        status.textContent = 'Analyzing… (10-20s)';
+        try {
+          const guess = await aiEstimateFoodFromPhoto(file);
+          Object.assign(draft, guess);
+          status.textContent = '✓ Estimated: ' + guess.food_name + ' (edit before saving)';
+          renderForm();
+        } catch (e) { status.textContent = '✗ ' + (e.message || 'AI failed'); console.error(e); }
+      });
+    }
+
+    const saveBtn = document.getElementById('nf_save');
+    if (saveBtn) saveBtn.addEventListener('click', async () => {
+      if (!draft.food_name) { toast('Food name required.', 'error'); return; }
+      saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
+      try {
+        const row = {
+          log_date: new Date().toISOString().slice(0, 10),
+          meal_slot: draft.meal_slot || 'snack',
+          food_name: draft.food_name,
+          brand: draft.brand || null,
+          serving_size_g: numOrNull(draft.serving_size_g),
+          servings: numOrNull(draft.servings) || 1,
+          calories: numOrNull(draft.calories),
+          protein_g: numOrNull(draft.protein_g),
+          carbs_g: numOrNull(draft.carbs_g),
+          fat_g: numOrNull(draft.fat_g),
+          fiber_g: numOrNull(draft.fiber_g),
+          source: draft.source || 'manual',
+          barcode: draft.barcode || null,
+        };
+        await qSaveFoodLog(row);
+        await qBumpFavorite(row);
+        toast('Saved.');
+        location.hash = '#/nutrition';
+      } catch (e) {
+        console.error(e); toast(e.message || 'Save failed', 'error');
+        saveBtn.disabled = false; saveBtn.textContent = 'Save to today';
+      }
+    });
+
+    document.querySelectorAll('.fav-use').forEach(el => el.addEventListener('click', async () => {
+      const fav = favorites.find(f => f.id === el.dataset.id); if (!fav) return;
+      try {
+        await qSaveFoodLog({
+          log_date: new Date().toISOString().slice(0, 10),
+          meal_slot: 'snack',
+          food_name: fav.food_name, brand: fav.brand,
+          serving_size_g: fav.serving_size_g, servings: 1,
+          calories: fav.calories, protein_g: fav.protein_g, carbs_g: fav.carbs_g, fat_g: fav.fat_g, fiber_g: fav.fiber_g,
+          source: 'favorite', barcode: fav.barcode,
+        });
+        await sb.from('food_favorites').update({ use_count: (fav.use_count||0)+1, last_used_at: new Date().toISOString() }).eq('id', fav.id);
+        toast('Added.'); location.hash = '#/nutrition';
+      } catch (e) { console.error(e); toast('Save failed', 'error'); }
+    }));
+  }
+  renderForm();
+}
+
+async function nutTargetsView() {
+  const body = document.getElementById('nut-body'); if (!body) return;
+  const p = state.profile || {};
+  const goalsList = (typeof GOALS !== 'undefined') ? GOALS : [
+    { value:'build_muscle', label:'Build muscle' },
+    { value:'lose_weight',  label:'Lose weight' },
+    { value:'gain_strength',label:'Gain strength' },
+    { value:'maintain',     label:'Maintain' },
+    { value:'general_fitness', label:'General fitness' },
+  ];
+  let draft = {
+    sex: 'male',
+    age: p.age || 30,
+    height_ft: p.height_ft || 5,
+    height_in: p.height_in || 9,
+    weight_lbs: p.weight_lbs || 180,
+    activity: p.activity_level || 'moderate',
+    goal: p.goal || 'maintain',
+    kcal_target: p.kcal_target || '',
+    protein_target_g: p.protein_target_g || '',
+    carbs_target_g: p.carbs_target_g || '',
+    fat_target_g: p.fat_target_g || '',
+  };
+  const acts = [
+    {v:'sedentary', l:'Sedentary (desk job, no workouts)'},
+    {v:'light',     l:'Light (1-3x/wk)'},
+    {v:'moderate',  l:'Moderate (3-5x/wk)'},
+    {v:'active',    l:'Active (6-7x/wk)'},
+    {v:'very_active', l:'Very active (2x/day or physical job)'},
+  ];
+  const paint = () => {
+    body.innerHTML = `
+      <div class="card" style="margin-bottom:1rem;">
+        <div class="section-label" style="margin-bottom:.5rem;">Calculator (Mifflin-St Jeor)</div>
+        <div class="form-grid cols-2-on-desktop" style="margin-bottom:.5rem;">
+          <div>
+            <label class="label">Sex</label>
+            <select id="t_sex" class="input">
+              <option value="male" ${draft.sex==='male'?'selected':''}>Male</option>
+              <option value="female" ${draft.sex==='female'?'selected':''}>Female</option>
+            </select>
+          </div>
+          <div><label class="label">Age</label><input id="t_age" class="input" type="number" min="14" max="100" value="${esc(draft.age)}" /></div>
+        </div>
+        <div class="form-grid cols-2-on-desktop" style="margin-bottom:.5rem;">
+          <div><label class="label">Height (ft)</label><input id="t_ft" class="input" type="number" min="3" max="8" value="${esc(draft.height_ft)}" /></div>
+          <div><label class="label">Height (in)</label><input id="t_in" class="input" type="number" min="0" max="11" value="${esc(draft.height_in)}" /></div>
+        </div>
+        <div style="margin-bottom:.5rem;">
+          <label class="label">Weight (lbs)</label>
+          <input id="t_wt" class="input" type="number" inputmode="decimal" step="0.1" min="50" max="700" value="${esc(draft.weight_lbs)}" />
+        </div>
+        <div style="margin-bottom:.5rem;">
+          <label class="label">Activity</label>
+          <select id="t_act" class="input">
+            ${acts.map(a => `<option value="${a.v}" ${draft.activity===a.v?'selected':''}>${a.l}</option>`).join('')}
+          </select>
+        </div>
+        <div style="margin-bottom:.625rem;">
+          <label class="label">Goal</label>
+          <select id="t_goal" class="input">
+            ${goalsList.map(g => `<option value="${g.value}" ${draft.goal===g.value?'selected':''}>${g.label}</option>`).join('')}
+          </select>
+        </div>
+        <button id="t_calc" class="btn btn-ghost" style="width:100%;">Calculate</button>
+      </div>
+
+      <div class="card" style="margin-bottom:1rem;">
+        <div class="section-label" style="margin-bottom:.5rem;">Daily targets</div>
+        <div class="form-grid cols-2-on-desktop" style="margin-bottom:.5rem;">
+          <div><label class="label">Calories</label><input id="t_kcal" class="input" type="number" inputmode="numeric" value="${esc(draft.kcal_target)}" placeholder="e.g. 2400" /></div>
+          <div><label class="label">Protein g</label><input id="t_p" class="input" type="number" inputmode="numeric" value="${esc(draft.protein_target_g)}" placeholder="e.g. 180" /></div>
+        </div>
+        <div class="form-grid cols-2-on-desktop">
+          <div><label class="label">Carbs g</label><input id="t_c" class="input" type="number" inputmode="numeric" value="${esc(draft.carbs_target_g)}" placeholder="e.g. 240" /></div>
+          <div><label class="label">Fat g</label><input id="t_f" class="input" type="number" inputmode="numeric" value="${esc(draft.fat_target_g)}" placeholder="e.g. 80" /></div>
+        </div>
+        <button id="t_save" class="btn btn-primary" style="width:100%;margin-top:.75rem;">Save targets</button>
+      </div>
+
+      <div id="t_msg" style="font-size:.75rem;color:var(--text-muted);"></div>
+    `;
+    document.getElementById('t_calc').addEventListener('click', () => {
+      draft.sex = document.getElementById('t_sex').value;
+      draft.age = Number(document.getElementById('t_age').value);
+      draft.height_ft = Number(document.getElementById('t_ft').value);
+      draft.height_in = Number(document.getElementById('t_in').value);
+      draft.weight_lbs = Number(document.getElementById('t_wt').value);
+      draft.activity = document.getElementById('t_act').value;
+      draft.goal = document.getElementById('t_goal').value;
+      const out = computeTargets(draft);
+      draft.kcal_target = out.kcal;
+      draft.protein_target_g = out.protein_g;
+      draft.carbs_target_g = out.carbs_g;
+      draft.fat_target_g = out.fat_g;
+      paint();
+      document.getElementById('t_msg').textContent = `BMR ${out.bmr} kcal · TDEE ${out.tdee} kcal · Goal-adjusted ${out.kcal} kcal/day. Edit numbers if you want, then Save.`;
+    });
+    document.getElementById('t_save').addEventListener('click', async () => {
+      const btn = document.getElementById('t_save'); btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        await sb.from('profiles').update({
+          activity_level: document.getElementById('t_act').value,
+          kcal_target: Number(document.getElementById('t_kcal').value) || null,
+          protein_target_g: Number(document.getElementById('t_p').value) || null,
+          carbs_target_g: Number(document.getElementById('t_c').value) || null,
+          fat_target_g: Number(document.getElementById('t_f').value) || null,
+          updated_at: new Date().toISOString(),
+        }).eq('id', state.session.user.id);
+        state.profile = await qProfile();
+        toast('Targets saved.');
+        location.hash = '#/nutrition';
+      } catch (e) {
+        console.error(e); toast(e.message || 'Save failed', 'error');
+        btn.disabled = false; btn.textContent = 'Save targets';
+      }
+    });
+  };
+  paint();
+}
+
+async function nutMealsView() {
+  const body = document.getElementById('nut-body'); if (!body) return;
+  const plans = await qMealPlans();
+  body.innerHTML = `
+    <div style="display:flex;gap:.5rem;margin-bottom:1rem;">
+      <button id="mp_new" class="btn btn-primary" style="flex:1;">+ New meal plan</button>
+    </div>
+    ${plans.length === 0
+      ? `<div class="card" style="color:var(--text-muted);text-align:center;">No meal plans yet. Create one based on your targets.</div>`
+      : plans.map(pl => `
+        <div class="card" style="margin-bottom:.75rem;">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.5rem;">
+            <div>
+              <div style="font-weight:600;">${esc(pl.name)}${pl.is_active?` <span class="chip slot-cardio" style="margin-left:.25rem;">Active</span>`:''}</div>
+              <div style="color:var(--text-muted);font-size:.75rem;margin-top:2px;">${pl.kcal_target?fmtWt(pl.kcal_target)+' kcal · ':''}${pl.protein_target_g?'P'+pl.protein_target_g+' ':''}${pl.carbs_target_g?'C'+pl.carbs_target_g+' ':''}${pl.fat_target_g?'F'+pl.fat_target_g:''}</div>
+            </div>
+            <div style="display:flex;gap:.25rem;">
+              <button data-id="${pl.id}" class="mp-edit btn btn-ghost" style="padding:.4rem .75rem;font-size:.8125rem;">Edit</button>
+              <button data-id="${pl.id}" class="mp-del" style="background:transparent;border:0;color:var(--text-muted);cursor:pointer;font-size:1.125rem;padding:.25rem .5rem;">×</button>
+            </div>
+          </div>
+          ${pl.description ? `<div style="color:var(--text-secondary);font-size:.8125rem;margin-bottom:.5rem;">${esc(pl.description)}</div>` : ''}
+          ${(pl.meal_plan_items||[]).map(it => `
+            <div class="exercise-row" style="padding:.4rem 0;">
+              <div style="min-width:0;">
+                <div class="exercise-name" style="font-size:.875rem;">${esc(it.meal_slot)} · ${esc(it.food_name)}</div>
+                <div style="color:var(--text-muted);font-size:.7rem;margin-top:2px;">${it.serving_size_g?fmtWt(it.serving_size_g)+'g · ':''}${it.calories?fmtWt(it.calories)+' kcal':''}${it.protein_g?` · P${fmtWt(it.protein_g)}`:''}${it.carbs_g?` C${fmtWt(it.carbs_g)}`:''}${it.fat_g?` F${fmtWt(it.fat_g)}`:''}</div>
+              </div>
+            </div>`).join('')}
+        </div>`).join('')}
+  `;
+  document.getElementById('mp_new').addEventListener('click', () => mpEditor(null));
+  document.querySelectorAll('.mp-edit').forEach(el => el.addEventListener('click', () => {
+    const pl = plans.find(p => p.id === el.dataset.id); mpEditor(pl);
+  }));
+  document.querySelectorAll('.mp-del').forEach(el => el.addEventListener('click', async () => {
+    if (!confirm('Delete this plan?')) return;
+    try { await qDeleteMealPlan(el.dataset.id); renderNutrition(); }
+    catch (e) { console.error(e); toast('Delete failed', 'error'); }
+  }));
+}
+
+function mpEditor(pl) {
+  const isEdit = !!pl;
+  const body = document.getElementById('nut-body'); if (!body) return;
+  let draft = {
+    id: pl?.id || null,
+    name: pl?.name || '',
+    description: pl?.description || '',
+    kcal_target: pl?.kcal_target || (state.profile?.kcal_target || ''),
+    protein_target_g: pl?.protein_target_g || (state.profile?.protein_target_g || ''),
+    carbs_target_g:   pl?.carbs_target_g   || (state.profile?.carbs_target_g   || ''),
+    fat_target_g:     pl?.fat_target_g     || (state.profile?.fat_target_g     || ''),
+    is_active: !!pl?.is_active,
+    items: (pl?.meal_plan_items || []).map(it => ({ ...it })),
+  };
+  const slots = ['breakfast','lunch','dinner','snack'];
+  const paint = () => {
+    body.innerHTML = `
+      <div class="card" style="margin-bottom:1rem;">
+        <label class="label">Plan name</label>
+        <input id="mp_name" class="input" value="${esc(draft.name)}" placeholder="e.g. Cut · 2200 kcal" style="margin-bottom:.5rem;" />
+        <label class="label">Description</label>
+        <input id="mp_desc" class="input" value="${esc(draft.description)}" placeholder="optional" style="margin-bottom:.5rem;" />
+        <div class="form-grid cols-2-on-desktop" style="margin-bottom:.5rem;">
+          <div><label class="label">kcal/day</label><input id="mp_k" class="input" type="number" value="${esc(draft.kcal_target)}" /></div>
+          <div><label class="label">Protein g</label><input id="mp_p" class="input" type="number" value="${esc(draft.protein_target_g)}" /></div>
+        </div>
+        <div class="form-grid cols-2-on-desktop">
+          <div><label class="label">Carbs g</label><input id="mp_c" class="input" type="number" value="${esc(draft.carbs_target_g)}" /></div>
+          <div><label class="label">Fat g</label><input id="mp_f" class="input" type="number" value="${esc(draft.fat_target_g)}" /></div>
+        </div>
+        <label style="display:flex;align-items:center;gap:.5rem;margin-top:.625rem;font-size:.875rem;">
+          <input id="mp_active" type="checkbox" ${draft.is_active?'checked':''} />
+          <span>Make this the active plan</span>
+        </label>
+      </div>
+
+      <div class="card" style="margin-bottom:1rem;">
+        <div class="section-label" style="margin-bottom:.5rem;">Meals</div>
+        ${draft.items.map((it, i) => `
+          <div style="display:grid;grid-template-columns:90px 1fr 90px 70px 36px;gap:.375rem;align-items:start;padding:.5rem 0;border-bottom:1px solid rgba(39,39,42,.5);">
+            <select data-i="${i}" class="mp-slot input">
+              ${slots.map(s => `<option value="${s}" ${it.meal_slot===s?'selected':''}>${s[0].toUpperCase()+s.slice(1)}</option>`).join('')}
+            </select>
+            <input data-i="${i}" data-k="food_name" class="mp-fld input" value="${esc(it.food_name||'')}" placeholder="Food" />
+            <input data-i="${i}" data-k="calories"  class="mp-fld input" style="text-align:center;" type="number" value="${esc(it.calories ?? '')}" placeholder="kcal" />
+            <input data-i="${i}" data-k="protein_g" class="mp-fld input" style="text-align:center;" type="number" value="${esc(it.protein_g ?? '')}" placeholder="P" />
+            <button data-i="${i}" class="mp-del-item" style="background:transparent;border:0;color:var(--text-muted);cursor:pointer;font-size:1.125rem;height:44px;">×</button>
+          </div>`).join('')}
+        <button id="mp_add" class="sub-split-add">+ Add meal</button>
+      </div>
+
+      <div style="display:flex;gap:.5rem;">
+        <a href="#/nutrition/meals" class="btn btn-ghost">Cancel</a>
+        <button id="mp_save" class="btn btn-primary" style="flex:1;">${isEdit?'Update plan':'Create plan'}</button>
+      </div>
+    `;
+
+    const get = (id) => document.getElementById(id);
+    get('mp_name').addEventListener('input', e => draft.name = e.target.value);
+    get('mp_desc').addEventListener('input', e => draft.description = e.target.value);
+    get('mp_k').addEventListener('input', e => draft.kcal_target = e.target.value);
+    get('mp_p').addEventListener('input', e => draft.protein_target_g = e.target.value);
+    get('mp_c').addEventListener('input', e => draft.carbs_target_g = e.target.value);
+    get('mp_f').addEventListener('input', e => draft.fat_target_g = e.target.value);
+    get('mp_active').addEventListener('change', e => draft.is_active = e.target.checked);
+    document.querySelectorAll('.mp-slot').forEach(el => el.addEventListener('change', e => {
+      draft.items[Number(el.dataset.i)].meal_slot = e.target.value;
+    }));
+    document.querySelectorAll('.mp-fld').forEach(el => el.addEventListener('input', e => {
+      const i = Number(el.dataset.i), k = el.dataset.k;
+      const v = e.target.value;
+      draft.items[i][k] = (k === 'food_name') ? v : (v === '' ? null : Number(v));
+    }));
+    document.querySelectorAll('.mp-del-item').forEach(el => el.addEventListener('click', () => {
+      draft.items.splice(Number(el.dataset.i), 1); paint();
+    }));
+    get('mp_add').addEventListener('click', () => {
+      draft.items.push({ meal_slot:'breakfast', food_name:'', calories:null, protein_g:null, carbs_g:null, fat_g:null });
+      paint();
+    });
+    get('mp_save').addEventListener('click', async () => {
+      const btn = get('mp_save'); btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        await qSaveMealPlan({
+          id: draft.id, name: draft.name, description: draft.description,
+          kcal_target: Number(draft.kcal_target) || null,
+          protein_target_g: Number(draft.protein_target_g) || null,
+          carbs_target_g: Number(draft.carbs_target_g) || null,
+          fat_target_g: Number(draft.fat_target_g) || null,
+          is_active: draft.is_active,
+          items: draft.items.filter(it => it.food_name).map(it => ({
+            meal_slot: it.meal_slot,
+            food_name: it.food_name,
+            serving_size_g: it.serving_size_g ?? null,
+            calories: it.calories,
+            protein_g: it.protein_g, carbs_g: it.carbs_g ?? null, fat_g: it.fat_g ?? null, fiber_g: it.fiber_g ?? null,
+            notes: it.notes || null,
+          })),
+        });
+        toast('Plan saved.');
+        location.hash = '#/nutrition/meals'; renderNutrition();
+      } catch (e) {
+        console.error(e); toast(e.message || 'Save failed', 'error');
+        btn.disabled = false; btn.textContent = isEdit ? 'Update plan' : 'Create plan';
+      }
+    });
+  };
+  paint();
+}
+
+/* =========================================================
    ROUTER
    ========================================================= */
 const ROUTES = {
@@ -3369,6 +4185,10 @@ const ROUTES = {
   '#/progress/weight':  renderProgress,
   '#/progress/photos':  renderProgress,
   '#/chat':             renderChat,
+  '#/nutrition':            renderNutrition,
+  '#/nutrition/add':        renderNutrition,
+  '#/nutrition/targets':    renderNutrition,
+  '#/nutrition/meals':      renderNutrition,
 };
 
 function route() {
