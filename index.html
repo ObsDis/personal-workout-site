@@ -447,6 +447,7 @@ const CONFIG_OK = _URL && _ANON && !_URL.startsWith('PASTE_') && !_ANON.startsWi
     if (saved.length) {
       history.replaceState({}, '', url.pathname + (sp.toString() ? '?' + sp.toString() : '') + url.hash);
       // Schedule a profile sync once the session is loaded (boot does this elsewhere)
+      localStorage.setItem('_KEYS_PENDING_SYNC', '1');
       window._pendingKeySync = true;
       // Defer toast until after app render
       setTimeout(() => { try { toast('Saved ' + saved.join(' + ') + ' API key' + (saved.length>1?'s':'')); } catch {} }, 1200);
@@ -3395,7 +3396,7 @@ async function callHuggingFace(messages, systemPrompt) {
   // Format messages for HF chat format
   const hfMessages = [{ role: 'system', content: systemPrompt }, ...messages];
 
-  const res = await fetch('https://api-inference.huggingface.co/models/meta-llama/Llama-3.1-8B-Instruct/v1/chat/completions', {
+  const res = await fetch('https://router.huggingface.co/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
     body: JSON.stringify({
@@ -5359,15 +5360,19 @@ async function boot() {
           localStorage.setItem('HF_API_KEY', state.profile.hf_api_key);
         }
         // If we just received fresh keys via URL params, push them up to the profile
-        if (window._pendingKeySync && state.session?.user?.id) {
+        const pendingSync = window._pendingKeySync || localStorage.getItem('_KEYS_PENDING_SYNC') === '1';
+        if (pendingSync && state.session?.user?.id) {
           const upd = {};
           const lg = localStorage.getItem('GROQ_API_KEY');
           const lh = localStorage.getItem('HF_API_KEY');
           if (lg && lg !== state.profile?.groq_api_key) upd.groq_api_key = lg;
           if (lh && lh !== state.profile?.hf_api_key) upd.hf_api_key = lh;
           if (Object.keys(upd).length) {
-            await sb.from('profiles').update({ ...upd, updated_at: new Date().toISOString() }).eq('id', state.session.user.id);
+            try {
+              await sb.from('profiles').update({ ...upd, updated_at: new Date().toISOString() }).eq('id', state.session.user.id);
+            } catch (e) { console.warn('profile key sync failed', e); }
           }
+          localStorage.removeItem('_KEYS_PENDING_SYNC');
           window._pendingKeySync = false;
         }
       } catch (e) { console.warn('chat key sync failed', e); }
