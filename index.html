@@ -175,6 +175,47 @@
   /* tabular numbers everywhere they make sense */
   .exercise-meta, .ex-edit-row .exSets, .ex-edit-row .exReps, .set-log-row .setWt, .set-log-row .setReps, .set-log-row .set-num { font-variant-numeric:tabular-nums; }
 
+  /* ===== BOTTOM NAV: highlight Chat tab ===== */
+  .bottom-nav a[href="#/chat"] {
+    position:relative;
+    transform:translateY(-12px);
+  }
+  .bottom-nav a[href="#/chat"] svg {
+    background:var(--accent);
+    color:#000;
+    width:48px; height:48px;
+    padding:11px;
+    border-radius:50%;
+    box-shadow:0 6px 18px rgba(16,185,129,.45), 0 0 0 4px var(--bg);
+    transition:transform .15s, box-shadow .15s;
+  }
+  .bottom-nav a[href="#/chat"]:active svg { transform:scale(0.94); }
+  .bottom-nav a[href="#/chat"].active svg {
+    box-shadow:0 6px 18px rgba(16,185,129,.55), 0 0 0 4px var(--bg-elevated);
+  }
+  .bottom-nav a[href="#/chat"] span {
+    color:var(--accent);
+    margin-top:.125rem;
+    font-weight:600;
+  }
+  /* tighten width slightly to fit 7 tabs on phone */
+  @media (max-width: 768px) {
+    .bottom-nav a {
+      padding:.375rem .125rem;
+      min-width:0;
+      flex:1;
+    }
+    .bottom-nav a span {
+      font-size:.5625rem;
+      letter-spacing:0;
+      white-space:nowrap;
+    }
+  }
+  @media (max-width: 380px) {
+    .bottom-nav a span { font-size:.5rem; }
+    .bottom-nav a:not([href="#/chat"]) svg { width:20px; height:20px; }
+  }
+
 /* ===== UTILITIES ===== */
   .hide { display:none !important; }
   .scroll-smooth { scroll-behavior:smooth; }
@@ -812,9 +853,10 @@ function topbar() {
   <nav class="bottom-nav">
     ${bottomLink('#/', icons.today, 'Today')}
     ${bottomLink('#/plan', icons.plan, 'Plan')}
-    ${bottomLink('#/nutrition', icons.nutrition, 'Food')}
-    ${bottomLink('#/progress', icons.progress, 'Progress')}
+    ${bottomLink('#/nutrition', icons.nutrition, 'Nutrition')}
     ${bottomLink('#/chat', icons.chat, 'Chat')}
+    ${bottomLink('#/progress', icons.progress, 'Progress')}
+    ${bottomLink('#/history', icons.history, 'History')}
     ${bottomLink('#/profile', icons.profile, 'Profile')}
   </nav>`;
 }
@@ -3046,6 +3088,223 @@ async function callGroq(messages, systemPrompt) {
   return data.choices?.[0]?.message?.content || 'Sorry, I didn\'t get a response. Try again.';
 }
 
+
+/* =========================================================
+   CHAT TOOL USE: define tools + executor + tool-aware Groq call
+   ========================================================= */
+
+const CHAT_TOOLS = [
+  {
+    type: 'function',
+    function: {
+      name: 'log_food',
+      description: 'Log a food the user ate. Use when the user describes eating something. Estimate macros if not provided. Default meal_slot from the time of day if unspecified.',
+      parameters: {
+        type: 'object',
+        properties: {
+          food_name: { type: 'string' },
+          brand: { type: 'string' },
+          meal_slot: { type: 'string', enum: ['breakfast','lunch','dinner','snack'] },
+          serving_size_g: { type: 'number' },
+          servings: { type: 'number' },
+          calories: { type: 'number' },
+          protein_g: { type: 'number' },
+          carbs_g: { type: 'number' },
+          fat_g: { type: 'number' },
+          fiber_g: { type: 'number' },
+          log_date: { type: 'string', description: 'YYYY-MM-DD; defaults to today.' }
+        },
+        required: ['food_name']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'log_workout_set',
+      description: 'Log a single set the user did during a workout. Creates a session for the given date+slot if needed.',
+      parameters: {
+        type: 'object',
+        properties: {
+          exercise_name: { type: 'string' },
+          weight_lbs: { type: 'number' },
+          reps: { type: 'integer' },
+          slot_type: { type: 'string', enum: ['push','pull','legs','upper','lower','full','custom'] },
+          set_number: { type: 'integer', description: 'Optional. Defaults to next number for that exercise today.' },
+          session_date: { type: 'string', description: 'YYYY-MM-DD; defaults to today.' }
+        },
+        required: ['exercise_name', 'weight_lbs', 'reps']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'log_body_weight',
+      description: 'Log the user\'s body weight to their tracking history.',
+      parameters: {
+        type: 'object',
+        properties: {
+          weight_lbs: { type: 'number' },
+          recorded_at: { type: 'string', description: 'YYYY-MM-DD or ISO datetime; defaults to now.' },
+          notes: { type: 'string' }
+        },
+        required: ['weight_lbs']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'log_cardio',
+      description: 'Log a cardio session (treadmill, walk, bike, etc.).',
+      parameters: {
+        type: 'object',
+        properties: {
+          cardio_type: { type: 'string' },
+          duration_min: { type: 'number' },
+          notes: { type: 'string' },
+          session_date: { type: 'string' }
+        },
+        required: ['duration_min']
+      }
+    }
+  }
+];
+
+async function executeChatTool(name, args) {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    if (name === 'log_food') {
+      const row = {
+        log_date: args.log_date || today,
+        meal_slot: args.meal_slot || 'snack',
+        food_name: args.food_name,
+        brand: args.brand || null,
+        serving_size_g: args.serving_size_g ?? null,
+        servings: args.servings ?? 1,
+        calories: args.calories ?? null,
+        protein_g: args.protein_g ?? null,
+        carbs_g: args.carbs_g ?? null,
+        fat_g: args.fat_g ?? null,
+        fiber_g: args.fiber_g ?? null,
+        source: 'chat',
+      };
+      const saved = await qSaveFoodLog(row);
+      try { await qBumpFavorite(row); } catch {}
+      return { ok: true, summary: `Logged: ${row.food_name}${row.brand?` (${row.brand})`:''} · ${row.calories??'?'} kcal · P${row.protein_g??'?'}/C${row.carbs_g??'?'}/F${row.fat_g??'?'}`, id: saved.id };
+    }
+
+    if (name === 'log_workout_set') {
+      const date = args.session_date || today;
+      const slot = args.slot_type || 'custom';
+      let sessionId;
+      const { data: existing } = await sb.from('sessions').select('id').eq('session_date', date).eq('slot_type', slot).maybeSingle();
+      if (existing?.id) sessionId = existing.id;
+      else {
+        const { data, error } = await sb.from('sessions').insert({ user_id: state.session.user.id, session_date: date, slot_type: slot }).select().single();
+        if (error) throw error;
+        sessionId = data.id;
+      }
+      let setNum = args.set_number;
+      if (!setNum) {
+        const { data: prev } = await sb.from('set_logs').select('set_number').eq('session_id', sessionId).eq('exercise_name', args.exercise_name).order('set_number', { ascending: false }).limit(1);
+        setNum = (prev?.[0]?.set_number || 0) + 1;
+      }
+      const { error } = await sb.from('set_logs').insert({
+        session_id: sessionId,
+        exercise_name: args.exercise_name,
+        set_number: setNum,
+        reps: args.reps,
+        weight_lbs: args.weight_lbs,
+      });
+      if (error) throw error;
+      return { ok: true, summary: `Logged ${args.exercise_name} set ${setNum}: ${args.weight_lbs} lbs × ${args.reps}` };
+    }
+
+    if (name === 'log_body_weight') {
+      let recorded_at = args.recorded_at || null;
+      if (recorded_at && recorded_at.length === 10) recorded_at = new Date(recorded_at + 'T12:00:00').toISOString();
+      await qSaveBodyWeight({
+        weight_lbs: args.weight_lbs,
+        source: 'chat',
+        notes: args.notes || null,
+        recorded_at,
+      });
+      return { ok: true, summary: `Logged body weight: ${args.weight_lbs} lbs` };
+    }
+
+    if (name === 'log_cardio') {
+      const date = args.session_date || today;
+      const { data, error } = await sb.from('sessions').insert({
+        user_id: state.session.user.id,
+        session_date: date,
+        slot_type: 'cardio',
+        cardio_type: args.cardio_type || 'Cardio',
+        cardio_duration_min: args.duration_min,
+        notes: args.notes || null,
+      }).select().single();
+      if (error) throw error;
+      return { ok: true, summary: `Logged cardio: ${args.cardio_type || 'Cardio'} · ${args.duration_min} min`, id: data.id };
+    }
+
+    return { ok: false, error: `Unknown tool: ${name}` };
+  } catch (e) {
+    return { ok: false, error: String(e?.message || e) };
+  }
+}
+
+async function callGroqWithTools(messages, systemPrompt, maxIterations = 4) {
+  const key = getChatKeys().groq;
+  if (!key) throw new Error('NO_GROQ_KEY');
+
+  let convo = [{ role: 'system', content: systemPrompt }, ...messages];
+
+  for (let iter = 0; iter < maxIterations; iter++) {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: convo,
+        tools: CHAT_TOOLS,
+        tool_choice: 'auto',
+        temperature: 0.5,
+        max_tokens: 1024,
+      })
+    });
+    if (res.status === 429) throw new Error('RATE_LIMITED');
+    if (!res.ok) {
+      const errBody = await res.text();
+      throw new Error(`GROQ_ERROR: ${res.status} ${errBody}`);
+    }
+    const data = await res.json();
+    const msg = data.choices?.[0]?.message;
+    if (!msg) return 'No response.';
+
+    convo.push(msg);
+
+    if (!msg.tool_calls || msg.tool_calls.length === 0) {
+      return msg.content || '';
+    }
+
+    // Execute every tool call, feed results back
+    for (const tc of msg.tool_calls) {
+      let parsedArgs = {};
+      try { parsedArgs = JSON.parse(tc.function.arguments || '{}'); } catch {}
+      const toolResult = await executeChatTool(tc.function.name, parsedArgs);
+      convo.push({
+        role: 'tool',
+        tool_call_id: tc.id,
+        content: JSON.stringify(toolResult)
+      });
+    }
+  }
+
+  return 'I made several tool calls but couldn\'t finish summarizing — try again or ask more specifically.';
+}
+
+
 // ---- Call HuggingFace Inference API ----
 async function callHuggingFace(messages, systemPrompt) {
   const key = getChatKeys().hf;
@@ -3087,6 +3346,12 @@ async function sendChatMessage(userMsg) {
   let systemPrompt = KB_CONTEXT.replace(/\{\{username\}\}/g, userName);
   const userContext = await getChatUserContext();
   systemPrompt += userContext;
+  systemPrompt += `\n\nLOGGING TOOLS AVAILABLE:
+- log_food: when the user describes eating something, call this. Estimate macros from food name + portion if they didn't give numbers; pick a sensible meal_slot from the time of day (≤10am breakfast, 11-2 lunch, 5-9 dinner, else snack) unless they said.
+- log_workout_set: when the user says they did a set of an exercise with weight and reps, call this once per set.
+- log_body_weight: when the user reports their body weight.
+- log_cardio: when the user reports a cardio session.
+After calling tools, briefly confirm in plain English what you logged and the totals if relevant.`;
 
   // Only send last 20 messages for context window management
   const recentMessages = chatState.messages.slice(-20).map(m => ({
@@ -3097,7 +3362,7 @@ async function sendChatMessage(userMsg) {
   let usedFallback = false;
 
   try {
-    response = await callGroq(recentMessages, systemPrompt);
+    response = await callGroqWithTools(recentMessages, systemPrompt);
   } catch (groqErr) {
     console.warn('Groq failed:', groqErr.message);
     if (groqErr.message === 'NO_GROQ_KEY') {
@@ -3474,7 +3739,7 @@ async function searchFoodOFF(query, limit = 10) {
   });
 }
 
-async function aiEstimateFoodFromPhoto(file) {
+async function aiEstimateFoodFromPhoto(file, portionHint = '') {
   const key = localStorage.getItem('GROQ_API_KEY');
   if (!key) throw new Error('No Groq API key. Open chat settings (gear icon) and paste your key first.');
   const dataUrl = await new Promise((res, rej) => {
@@ -3484,11 +3749,11 @@ async function aiEstimateFoodFromPhoto(file) {
     fr.readAsDataURL(file);
   });
   const body = {
-    model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+    model: 'meta-llama/llama-4-maverick-17b-128e-instruct',
     messages: [{
       role: 'user',
       content: [
-        { type: 'text', text: 'Identify the food in this image and estimate calories and macros for the visible portion. Reply with JSON only, no prose: {"food_name":"...","brand":null,"serving_size_g":<grams>,"calories":<kcal>,"protein_g":<g>,"carbs_g":<g>,"fat_g":<g>,"fiber_g":<g>,"confidence":"low|medium|high","caveat":"<one short note about portion uncertainty>"}.' },
+        { type: 'text', text: (portionHint ? (portionHint + ' ') : '') + 'Identify each visible food item in this image and estimate macros for the VISIBLE portion. Use the plate, hand, or utensil as scale reference if any are visible. Reply with JSON only, no prose: {"food_name":"...","brand":null,"serving_size_g":<grams>,"calories":<kcal>,"protein_g":<g>,"carbs_g":<g>,"fat_g":<g>,"fiber_g":<g>,"confidence":"low|medium|high","caveat":"<one sentence: what portion you assumed and why; flag unusual ingredients>"}.' },
         { type: 'image_url', image_url: { url: dataUrl } }
       ]
     }],
@@ -3505,6 +3770,90 @@ async function aiEstimateFoodFromPhoto(file) {
   let parsed;
   try { parsed = JSON.parse(j.choices[0].message.content); } catch (e) { throw new Error('Vision response not JSON'); }
   return { ...parsed, source: 'ai_photo' };
+}
+
+
+// --- Live camera capture for AI photo scan ---
+async function captureFromCamera() {
+  const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    video.srcObject = stream; video.setAttribute('playsinline','true'); video.style.cssText='width:100%;max-width:560px;border-radius:.625rem;background:#000;';
+    const overlay = document.createElement('div');
+    overlay.style.cssText='position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.75rem;padding:1rem;';
+    overlay.innerHTML = '<div style="font-size:.8125rem;color:#fafafa;">Frame the food, then tap Capture</div>';
+    overlay.appendChild(video);
+    const row = document.createElement('div'); row.style.cssText='display:flex;gap:.5rem;width:100%;max-width:560px;';
+    const cancel = document.createElement('button'); cancel.className='btn btn-ghost'; cancel.textContent='Cancel'; cancel.style.flex='1';
+    const snap = document.createElement('button'); snap.className='btn btn-primary'; snap.textContent='Capture'; snap.style.flex='2';
+    row.appendChild(cancel); row.appendChild(snap); overlay.appendChild(row);
+    document.body.appendChild(overlay);
+    video.play();
+    const stop = () => { stream.getTracks().forEach(t=>t.stop()); overlay.remove(); };
+    cancel.onclick = () => { stop(); reject(new Error('Cancelled')); };
+    snap.onclick = async () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+        const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.85));
+        if (!blob) { stop(); reject(new Error('Capture failed')); return; }
+        const file = new File([blob], 'capture.jpg', { type: 'image/jpeg' });
+        stop(); resolve(file);
+      } catch (e) { stop(); reject(e); }
+    };
+  });
+}
+
+// --- ZXing barcode scanner (fallback for browsers without BarcodeDetector, esp. iOS Safari) ---
+let _zxingLoading = null;
+async function loadZXing() {
+  if (window.ZXingBrowser) return window.ZXingBrowser;
+  if (window.ZXing) return window.ZXing;
+  if (_zxingLoading) return _zxingLoading;
+  _zxingLoading = new Promise((res, rej) => {
+    const sc = document.createElement('script');
+    sc.src = 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/zxing-browser.min.js';
+    sc.onload = () => res(window.ZXingBrowser || window.ZXing);
+    sc.onerror = () => rej(new Error('Failed to load ZXing barcode library.'));
+    document.head.appendChild(sc);
+  });
+  return _zxingLoading;
+}
+
+async function scanBarcodeWithZXing() {
+  const Z = await loadZXing();
+  if (!Z) throw new Error('ZXing failed to load.');
+  const reader = new Z.BrowserMultiFormatReader();
+  const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    video.srcObject = stream; video.setAttribute('playsinline','true'); video.style.cssText='width:100%;max-width:560px;border-radius:.625rem;background:#000;';
+    const overlay = document.createElement('div');
+    overlay.style.cssText='position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.75rem;padding:1rem;';
+    overlay.innerHTML = '<div style="font-size:.8125rem;color:#fafafa;">Point camera at barcode</div>';
+    overlay.appendChild(video);
+    const cancel = document.createElement('button'); cancel.className='btn btn-ghost'; cancel.textContent='Cancel'; cancel.style.minWidth='160px';
+    overlay.appendChild(cancel);
+    document.body.appendChild(overlay);
+    video.play();
+    let done = false;
+    const stop = () => { done = true; try { reader.reset(); } catch {} stream.getTracks().forEach(t=>t.stop()); overlay.remove(); };
+    cancel.onclick = () => { stop(); reject(new Error('Cancelled')); };
+    reader.decodeFromVideoElementContinuously(video, (result, err, controls) => {
+      if (done) { try { controls.stop(); } catch {} return; }
+      if (result) {
+        stop();
+        resolve(result.getText());
+      }
+    });
+  });
+}
+
+// Unified scanner: BarcodeDetector if available, else ZXing.
+async function scanBarcodeFromVideoUnified() {
+  if ('BarcodeDetector' in window) return scanBarcodeFromVideo();
+  return scanBarcodeWithZXing();
 }
 
 async function scanBarcodeFromVideo() {
@@ -3712,16 +4061,20 @@ async function nutAddView() {
 
     let modeUI = '';
     if (mode === 'barcode') {
-      const btSupported = 'BarcodeDetector' in window;
       modeUI = `<div class="card" style="margin-bottom:1rem;">
         <div class="section-label" style="margin-bottom:.5rem;">Barcode</div>
-        <div style="display:flex;gap:.5rem;margin-bottom:.5rem;">
-          <input id="bc_input" class="input" inputmode="numeric" placeholder="Type barcode (12-13 digits)" style="flex:1;" />
-          ${btSupported ? `<button id="bc_scan" class="btn btn-ghost">Scan</button>` : ''}
-        </div>
-        <button id="bc_lookup" class="btn btn-primary" style="width:100%;">Look up</button>
-        ${!btSupported ? `<p style="font-size:.7rem;color:var(--text-muted);margin-top:.5rem;">Camera scanning needs Chrome on desktop or Android. On iOS, type the barcode manually.</p>` : ''}
-        <p style="font-size:.7rem;color:var(--text-muted);margin-top:.5rem;">Lookups powered by OpenFoodFacts (free, no auth).</p>
+        <button id="bc_scan" class="btn btn-primary" style="width:100%;margin-bottom:.5rem;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:.375rem;"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          Open scanner
+        </button>
+        <details style="margin-bottom:.5rem;">
+          <summary style="cursor:pointer;color:var(--text-muted);font-size:.8125rem;padding:.25rem 0;">Or type the barcode manually</summary>
+          <div style="display:flex;gap:.5rem;margin-top:.5rem;">
+            <input id="bc_input" class="input" inputmode="numeric" placeholder="12-13 digits" style="flex:1;" />
+            <button id="bc_lookup" class="btn btn-ghost">Look up</button>
+          </div>
+        </details>
+        <p style="font-size:.7rem;color:var(--text-muted);margin-top:.25rem;">Lookups via OpenFoodFacts (free). iOS Safari uses ZXing fallback for camera scanning.</p>
         <div id="bc_status" style="font-size:.75rem;color:var(--text-muted);margin-top:.5rem;"></div>
       </div>`;
     } else if (mode === 'search') {
@@ -3735,10 +4088,26 @@ async function nutAddView() {
       </div>`;
     } else if (mode === 'photo') {
       modeUI = `<div class="card" style="margin-bottom:1rem;">
-        <div class="section-label" style="margin-bottom:.5rem;">Photo (AI estimate)</div>
-        <input id="ph_file" type="file" accept="image/*" class="input" style="padding:.5rem;margin-bottom:.5rem;" />
-        <button id="ph_go" class="btn btn-primary" style="width:100%;">Identify with AI</button>
-        <p style="font-size:.7rem;color:var(--text-muted);margin-top:.5rem;line-height:1.4;">Uses your Groq vision API. Results are estimates — always edit numbers before saving. Won't be more accurate than 60-70% on portion size.</p>
+        <div class="section-label" style="margin-bottom:.5rem;">Photo scan (AI estimate)</div>
+        <button id="ph_camera" class="btn btn-primary" style="width:100%;margin-bottom:.5rem;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:.375rem;"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          Open camera scanner
+        </button>
+        <details style="margin-bottom:.5rem;">
+          <summary style="cursor:pointer;color:var(--text-muted);font-size:.8125rem;padding:.25rem 0;">Or upload a file</summary>
+          <input id="ph_file" type="file" accept="image/*" class="input" style="padding:.5rem;margin-top:.5rem;" />
+          <button id="ph_go" class="btn btn-ghost" style="width:100%;margin-top:.5rem;">Identify uploaded photo</button>
+        </details>
+        <label class="label" style="margin-top:.25rem;">Portion hint (optional)</label>
+        <select id="ph_hint" class="input">
+          <option value="">No hint — let AI guess</option>
+          <option value="small">Small portion (snack-size, ~100g)</option>
+          <option value="medium">Medium portion (regular meal)</option>
+          <option value="large">Large portion (heavy meal)</option>
+          <option value="custom">I'll type a specific weight</option>
+        </select>
+        <input id="ph_custom_g" class="input" type="number" placeholder="Specific weight in grams" style="margin-top:.5rem;display:none;" />
+        <p style="font-size:.7rem;color:var(--text-muted);margin-top:.5rem;line-height:1.4;">Uses Groq vision (llama-4-maverick). Always review the numbers before saving — portion estimates are best-effort.</p>
         <div id="ph_status" style="font-size:.75rem;color:var(--text-muted);margin-top:.5rem;"></div>
       </div>`;
     }
@@ -3788,14 +4157,16 @@ async function nutAddView() {
         try { const food = await lookupBarcode(code); Object.assign(draft, food); status.textContent = '✓ Found: ' + (food.food_name || 'Unknown'); renderForm(); }
         catch (e) { status.textContent = '✗ ' + (e.message || 'Lookup failed'); }
       };
-      document.getElementById('bc_lookup').addEventListener('click', lookup);
-      document.getElementById('bc_input').addEventListener('keydown', e => { if (e.key === 'Enter') lookup(); });
+      const lookupBtn = document.getElementById('bc_lookup');
+      const inputEl = document.getElementById('bc_input');
+      if (lookupBtn) lookupBtn.addEventListener('click', lookup);
+      if (inputEl) inputEl.addEventListener('keydown', e => { if (e.key === 'Enter') lookup(); });
       const scanBtn = document.getElementById('bc_scan');
       if (scanBtn) scanBtn.addEventListener('click', async () => {
         try {
           status.textContent = 'Opening camera…';
-          const code = await scanBarcodeFromVideo();
-          document.getElementById('bc_input').value = code;
+          const code = await scanBarcodeFromVideoUnified();
+          if (inputEl) inputEl.value = code;
           status.textContent = '✓ Scanned: ' + code + '. Looking up…';
           const food = await lookupBarcode(code);
           Object.assign(draft, food); status.textContent = '✓ Found: ' + food.food_name; renderForm();
@@ -3831,17 +4202,46 @@ async function nutAddView() {
 
     if (mode === 'photo') {
       const status = document.getElementById('ph_status');
-      document.getElementById('ph_go').addEventListener('click', async () => {
-        const file = document.getElementById('ph_file').files?.[0];
-        if (!file) { status.textContent = 'Pick a photo first.'; return; }
+      const hintSel = document.getElementById('ph_hint');
+      const customG = document.getElementById('ph_custom_g');
+      hintSel?.addEventListener('change', () => {
+        customG.style.display = (hintSel.value === 'custom') ? 'block' : 'none';
+      });
+      const portionHint = () => {
+        const v = hintSel?.value || '';
+        if (v === 'custom') {
+          const g = Number(customG.value);
+          return g ? `The portion shown weighs approximately ${g} grams.` : '';
+        }
+        if (v === 'small') return 'Assume a small/snack-size portion (~100g).';
+        if (v === 'medium') return 'Assume a typical meal portion.';
+        if (v === 'large') return 'Assume a large/heavy meal portion.';
+        return '';
+      };
+      const runOnFile = async (file) => {
+        if (!file) { status.textContent = 'No file.'; return; }
         if (file.size > 4 * 1024 * 1024) { status.textContent = 'Photo too large (4MB max for AI).'; return; }
         status.textContent = 'Analyzing… (10-20s)';
         try {
-          const guess = await aiEstimateFoodFromPhoto(file);
+          const guess = await aiEstimateFoodFromPhoto(file, portionHint());
           Object.assign(draft, guess);
           status.textContent = '✓ Estimated: ' + guess.food_name + ' (edit before saving)';
           renderForm();
         } catch (e) { status.textContent = '✗ ' + (e.message || 'AI failed'); console.error(e); }
+      };
+      document.getElementById('ph_camera').addEventListener('click', async () => {
+        try {
+          status.textContent = 'Opening camera…';
+          const file = await captureFromCamera();
+          status.textContent = 'Captured. Analyzing…';
+          await runOnFile(file);
+        } catch (e) { status.textContent = '✗ ' + e.message; }
+      });
+      const goBtn = document.getElementById('ph_go');
+      if (goBtn) goBtn.addEventListener('click', async () => {
+        const file = document.getElementById('ph_file').files?.[0];
+        if (!file) { status.textContent = 'Pick a photo first.'; return; }
+        await runOnFile(file);
       });
     }
 
@@ -4037,13 +4437,28 @@ async function nutMealsView() {
             </div>
           </div>
           ${pl.description ? `<div style="color:var(--text-secondary);font-size:.8125rem;margin-bottom:.5rem;">${esc(pl.description)}</div>` : ''}
-          ${(pl.meal_plan_items||[]).map(it => `
-            <div class="exercise-row" style="padding:.4rem 0;">
-              <div style="min-width:0;">
-                <div class="exercise-name" style="font-size:.875rem;">${esc(it.meal_slot)} · ${esc(it.food_name)}</div>
-                <div style="color:var(--text-muted);font-size:.7rem;margin-top:2px;">${it.serving_size_g?fmtWt(it.serving_size_g)+'g · ':''}${it.calories?fmtWt(it.calories)+' kcal':''}${it.protein_g?` · P${fmtWt(it.protein_g)}`:''}${it.carbs_g?` C${fmtWt(it.carbs_g)}`:''}${it.fat_g?` F${fmtWt(it.fat_g)}`:''}</div>
-              </div>
-            </div>`).join('')}
+          ${(() => {
+            const items = pl.meal_plan_items || [];
+            if (items.length === 0) return '';
+            const days = [...new Set(items.map(i => i.day_index || 1))].sort((a,b)=>a-b);
+            return days.map(d => {
+              const di = items.filter(i => (i.day_index||1) === d).sort((a,b)=>(a.order_idx||0)-(b.order_idx||0));
+              const t = di.reduce((a,i)=>({k:a.k+Number(i.calories||0),p:a.p+Number(i.protein_g||0)}),{k:0,p:0});
+              return `<div style="margin-top:.625rem;">
+                <div style="font-size:.7rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;display:flex;justify-content:space-between;margin-bottom:.25rem;">
+                  <span>Day ${d}</span>
+                  <span style="font-variant-numeric:tabular-nums;color:var(--text-secondary);">${fmtWt(t.k)} kcal · P${fmtWt(t.p)}</span>
+                </div>
+                ${di.map(it => `
+                  <div class="exercise-row" style="padding:.4rem 0;">
+                    <div style="min-width:0;">
+                      <div class="exercise-name" style="font-size:.875rem;">${esc(it.meal_slot)} · ${esc(it.food_name)}</div>
+                      <div style="color:var(--text-muted);font-size:.7rem;margin-top:2px;">${it.serving_size_g?fmtWt(it.serving_size_g)+'g · ':''}${it.calories?fmtWt(it.calories)+' kcal':''}${it.protein_g?` · P${fmtWt(it.protein_g)}`:''}${it.carbs_g?` C${fmtWt(it.carbs_g)}`:''}${it.fat_g?` F${fmtWt(it.fat_g)}`:''}</div>
+                    </div>
+                  </div>`).join('')}
+              </div>`;
+            }).join('');
+          })()}
         </div>`).join('')}
   `;
   document.getElementById('mp_new').addEventListener('click', () => mpEditor(null));
@@ -4069,18 +4484,33 @@ function mpEditor(pl) {
     carbs_target_g:   pl?.carbs_target_g   || (state.profile?.carbs_target_g   || ''),
     fat_target_g:     pl?.fat_target_g     || (state.profile?.fat_target_g     || ''),
     is_active: !!pl?.is_active,
-    items: (pl?.meal_plan_items || []).map(it => ({ ...it })),
+    items: (pl?.meal_plan_items || []).map(it => ({ ...it, day_index: it.day_index || 1 })),
   };
+  if (draft.items.length === 0) draft.items.push({ day_index:1, meal_slot:'breakfast', food_name:'', calories:null, protein_g:null, carbs_g:null, fat_g:null });
   const slots = ['breakfast','lunch','dinner','snack'];
+
+  const dayCount = () => Math.max(1, ...draft.items.map(i => i.day_index || 1));
+
+  const totalsForDay = (day) => {
+    const its = draft.items.filter(i => (i.day_index||1) === day);
+    return its.reduce((a, i) => ({
+      kcal: a.kcal + Number(i.calories||0),
+      p: a.p + Number(i.protein_g||0),
+      c: a.c + Number(i.carbs_g||0),
+      f: a.f + Number(i.fat_g||0),
+    }), { kcal:0, p:0, c:0, f:0 });
+  };
+
   const paint = () => {
+    const days = Array.from({length: dayCount()}, (_, i) => i + 1);
     body.innerHTML = `
       <div class="card" style="margin-bottom:1rem;">
         <label class="label">Plan name</label>
-        <input id="mp_name" class="input" value="${esc(draft.name)}" placeholder="e.g. Cut · 2200 kcal" style="margin-bottom:.5rem;" />
+        <input id="mp_name" class="input" value="${esc(draft.name)}" placeholder="e.g. Cut · 2200 kcal · 5 days" style="margin-bottom:.5rem;" />
         <label class="label">Description</label>
         <input id="mp_desc" class="input" value="${esc(draft.description)}" placeholder="optional" style="margin-bottom:.5rem;" />
         <div class="form-grid cols-2-on-desktop" style="margin-bottom:.5rem;">
-          <div><label class="label">kcal/day</label><input id="mp_k" class="input" type="number" value="${esc(draft.kcal_target)}" /></div>
+          <div><label class="label">kcal/day target</label><input id="mp_k" class="input" type="number" value="${esc(draft.kcal_target)}" /></div>
           <div><label class="label">Protein g</label><input id="mp_p" class="input" type="number" value="${esc(draft.protein_target_g)}" /></div>
         </div>
         <div class="form-grid cols-2-on-desktop">
@@ -4093,19 +4523,35 @@ function mpEditor(pl) {
         </label>
       </div>
 
-      <div class="card" style="margin-bottom:1rem;">
-        <div class="section-label" style="margin-bottom:.5rem;">Meals</div>
-        ${draft.items.map((it, i) => `
-          <div style="display:grid;grid-template-columns:90px 1fr 90px 70px 36px;gap:.375rem;align-items:start;padding:.5rem 0;border-bottom:1px solid rgba(39,39,42,.5);">
-            <select data-i="${i}" class="mp-slot input">
-              ${slots.map(s => `<option value="${s}" ${it.meal_slot===s?'selected':''}>${s[0].toUpperCase()+s.slice(1)}</option>`).join('')}
-            </select>
-            <input data-i="${i}" data-k="food_name" class="mp-fld input" value="${esc(it.food_name||'')}" placeholder="Food" />
-            <input data-i="${i}" data-k="calories"  class="mp-fld input" style="text-align:center;" type="number" value="${esc(it.calories ?? '')}" placeholder="kcal" />
-            <input data-i="${i}" data-k="protein_g" class="mp-fld input" style="text-align:center;" type="number" value="${esc(it.protein_g ?? '')}" placeholder="P" />
-            <button data-i="${i}" class="mp-del-item" style="background:transparent;border:0;color:var(--text-muted);cursor:pointer;font-size:1.125rem;height:44px;">×</button>
-          </div>`).join('')}
-        <button id="mp_add" class="sub-split-add">+ Add meal</button>
+      ${days.map(day => {
+        const dayItems = draft.items.filter(i => (i.day_index||1) === day);
+        const t = totalsForDay(day);
+        return `<div class="card" style="margin-bottom:.75rem;">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.5rem;">
+            <div class="section-label" style="margin:0;">Day ${day}</div>
+            <div style="display:flex;align-items:center;gap:.625rem;">
+              <span style="font-size:.7rem;color:var(--text-muted);font-variant-numeric:tabular-nums;">${fmtWt(t.kcal)} kcal · P${fmtWt(t.p)}/C${fmtWt(t.c)}/F${fmtWt(t.f)}</span>
+              ${days.length > 1 ? `<button data-day="${day}" class="mp-rm-day" style="background:transparent;border:0;color:var(--text-muted);cursor:pointer;font-size:.875rem;padding:.25rem .375rem;">remove day</button>` : ''}
+            </div>
+          </div>
+          ${dayItems.map((it) => {
+            const i = draft.items.indexOf(it);
+            return `<div style="display:grid;grid-template-columns:90px 1fr 70px 56px 36px;gap:.375rem;align-items:start;padding:.5rem 0;border-bottom:1px solid rgba(39,39,42,.5);">
+              <select data-i="${i}" class="mp-slot input">
+                ${slots.map(sl => `<option value="${sl}" ${it.meal_slot===sl?'selected':''}>${sl[0].toUpperCase()+sl.slice(1)}</option>`).join('')}
+              </select>
+              <input data-i="${i}" data-k="food_name" class="mp-fld input" value="${esc(it.food_name||'')}" placeholder="Food" />
+              <input data-i="${i}" data-k="calories"  class="mp-fld input" style="text-align:center;" type="number" value="${esc(it.calories ?? '')}" placeholder="kcal" />
+              <input data-i="${i}" data-k="protein_g" class="mp-fld input" style="text-align:center;" type="number" value="${esc(it.protein_g ?? '')}" placeholder="P" />
+              <button data-i="${i}" class="mp-del-item" style="background:transparent;border:0;color:var(--text-muted);cursor:pointer;font-size:1.125rem;height:44px;">×</button>
+            </div>`;
+          }).join('')}
+          <button data-day="${day}" class="mp-add-meal sub-split-add">+ Add meal to Day ${day}</button>
+        </div>`;
+      }).join('')}
+
+      <div style="display:flex;gap:.5rem;margin-bottom:1rem;">
+        <button id="mp_add_day" class="btn btn-ghost" style="flex:1;">+ Add another day</button>
       </div>
 
       <div style="display:flex;gap:.5rem;">
@@ -4133,8 +4579,23 @@ function mpEditor(pl) {
     document.querySelectorAll('.mp-del-item').forEach(el => el.addEventListener('click', () => {
       draft.items.splice(Number(el.dataset.i), 1); paint();
     }));
-    get('mp_add').addEventListener('click', () => {
-      draft.items.push({ meal_slot:'breakfast', food_name:'', calories:null, protein_g:null, carbs_g:null, fat_g:null });
+    document.querySelectorAll('.mp-add-meal').forEach(el => el.addEventListener('click', () => {
+      const day = Number(el.dataset.day);
+      draft.items.push({ day_index: day, meal_slot:'breakfast', food_name:'', calories:null, protein_g:null, carbs_g:null, fat_g:null });
+      paint();
+    }));
+    document.querySelectorAll('.mp-rm-day').forEach(el => el.addEventListener('click', () => {
+      const day = Number(el.dataset.day);
+      if (!confirm(`Remove Day ${day} and all its meals?`)) return;
+      draft.items = draft.items.filter(i => (i.day_index||1) !== day);
+      // re-number subsequent days
+      draft.items.forEach(i => { if (i.day_index > day) i.day_index--; });
+      if (draft.items.length === 0) draft.items.push({ day_index:1, meal_slot:'breakfast', food_name:'', calories:null });
+      paint();
+    }));
+    get('mp_add_day').addEventListener('click', () => {
+      const next = dayCount() + 1;
+      draft.items.push({ day_index: next, meal_slot:'breakfast', food_name:'', calories:null });
       paint();
     });
     get('mp_save').addEventListener('click', async () => {
@@ -4148,6 +4609,7 @@ function mpEditor(pl) {
           fat_target_g: Number(draft.fat_target_g) || null,
           is_active: draft.is_active,
           items: draft.items.filter(it => it.food_name).map(it => ({
+            day_index: it.day_index || 1,
             meal_slot: it.meal_slot,
             food_name: it.food_name,
             serving_size_g: it.serving_size_g ?? null,
