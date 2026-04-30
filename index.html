@@ -605,10 +605,61 @@ const state = {
 const $ = id => document.getElementById(id);
 const appEl = () => document.getElementById('app');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+// Returns an <a> that on mobile tries to open the YouTube app first (youtube:// scheme),
+// falling back to the web if the app isn't installed. On desktop it just opens the
+// search URL in a new tab. The web URL is the actual href so right-click + share + middle-click
+// still work as expected.
 const ytLink = (name) => {
+  const safe = String(name || '').replace(/'/g, '&#39;');
   const q = encodeURIComponent('How to ' + name);
-  return `<a href="https://www.youtube.com/results?search_query=${q}" target="_blank" rel="noopener" class="hover:text-emerald-400 hover:underline underline-offset-2 decoration-zinc-700">${esc(name)}</a>`;
+  return `<a href="https://www.youtube.com/results?search_query=${q}" data-yt-q="${q}" data-yt-name="${esc(safe)}" rel="noopener" class="ytLink hover:text-emerald-400 hover:underline underline-offset-2 decoration-zinc-700">${esc(name)}</a>`;
 };
+
+// Single delegated click handler — prefers the YouTube app on mobile.
+function _openYouTubeFor(query) {
+  const ua = (navigator.userAgent || '');
+  const isIOS = /iPhone|iPad|iPod/i.test(ua);
+  const isAndroid = /Android/i.test(ua);
+  const webUrl = 'https://www.youtube.com/results?search_query=' + query;
+
+  if (!isIOS && !isAndroid) {
+    window.open(webUrl, '_blank', 'noopener');
+    return;
+  }
+
+  let appOpened = false;
+  const onHidden = () => { if (document.hidden) appOpened = true; };
+  document.addEventListener('visibilitychange', onHidden);
+
+  const fallback = () => {
+    document.removeEventListener('visibilitychange', onHidden);
+    if (!appOpened) {
+      window.open(webUrl, '_blank', 'noopener');
+    }
+  };
+
+  if (isAndroid) {
+    const intent = 'intent://www.youtube.com/results?search_query=' + query +
+                   '#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=' +
+                   encodeURIComponent(webUrl) + ';end';
+    window.location.href = intent;
+    setTimeout(fallback, 1200);
+    return;
+  }
+
+  // iOS
+  window.location.href = 'youtube://www.youtube.com/results?search_query=' + query;
+  setTimeout(fallback, 1200);
+}
+
+document.addEventListener('click', (e) => {
+  const a = e.target.closest && e.target.closest('a.ytLink');
+  if (!a) return;
+  const q = a.getAttribute('data-yt-q');
+  if (!q) return;
+  e.preventDefault();
+  _openYouTubeFor(q);
+}, true);
 const nav = (hash) => { if (location.hash === hash) route(); else location.hash = hash; };
 const today = () => { const d = new Date(); return d.toISOString().slice(0,10); };
 const todayDow = () => new Date().getDay();
