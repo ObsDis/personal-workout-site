@@ -1684,7 +1684,7 @@ async function renderLogFor(slot, dayMeta = {}, overrideDate = null) {
 
   const fetchLastWeights = async () => {
     const out = {};
-    for (const ex of exercises) {
+    for (const ex of baseExercises) {
       const last = await qLastWeightFor(ex.exercise_name);
       out[ex.exercise_name] = last;
     }
@@ -1706,7 +1706,7 @@ async function renderLogFor(slot, dayMeta = {}, overrideDate = null) {
           reps: s.reps ?? '',
           weight_lbs: s.weight_lbs ?? '',
         }))
-      : exercises.flatMap(ex => {
+      : baseExercises.flatMap(ex => {
           const sets = [];
           for (let i = 1; i <= (ex.target_sets || 3); i++) {
             sets.push({ exercise_name: ex.exercise_name, set_number: i, reps: '', weight_lbs: '' });
