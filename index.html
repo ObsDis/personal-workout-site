@@ -80,12 +80,14 @@
   /* ===== EXERCISE EDIT ROWS (plan editor + onboarding) ===== */
   .ex-edit-row {
     display:grid;
-    grid-template-columns: 1fr 64px 90px 36px;
+    grid-template-columns: 24px 1fr 64px 90px 36px;
     gap:.5rem;
     align-items:center;
     padding:.5rem 0;
     border-bottom:1px solid rgba(39,39,42,.5);
   }
+  .ex-edit-row.sortable-ghost { opacity:.4; background:rgba(16,185,129,.08); }
+  .ex-edit-row.sortable-chosen { box-shadow:0 0 0 1px var(--accent); }
   .ex-edit-row:last-child { border-bottom:0; }
   .ex-edit-row .exName  { width:100%; }
   .ex-edit-row .exSets, .ex-edit-row .exReps { width:100%; padding:.5rem .5rem; text-align:center; }
@@ -98,16 +100,18 @@
   .ex-edit-row .exDel:hover { background:rgba(239,68,68,.12); color:var(--danger); }
   @media (max-width: 480px) {
     .ex-edit-row {
-      grid-template-columns: 1fr 1fr 36px;
+      grid-template-columns: 24px 1fr 36px;
       grid-template-areas:
-        "name name name"
-        "sets reps del";
+        "drag name name"
+        "drag sets reps"
+        "drag del  del";
       gap:.375rem;
     }
+    .ex-edit-row .exDrag { grid-area:drag; align-self:start; padding-top:.625rem; }
     .ex-edit-row .exName { grid-area:name; }
     .ex-edit-row .exSets { grid-area:sets; }
     .ex-edit-row .exReps { grid-area:reps; }
-    .ex-edit-row .exDel  { grid-area:del; min-height:44px; height:44px; }
+    .ex-edit-row .exDel  { grid-area:del; min-height:44px; height:44px; justify-self:end; }
   }
 
   /* ===== SUB-TASK NUMERIC GRID ===== */
@@ -120,8 +124,8 @@
   /* ===== SET LOG ROWS ===== */
   .set-log-row {
     display:grid;
-    grid-template-columns: 32px 1fr 1fr 36px;
-    gap:.5rem;
+    grid-template-columns: 32px 1fr 1fr 28px 36px;
+    gap:.375rem;
     align-items:center;
     padding:.375rem 0;
   }
@@ -1739,6 +1743,7 @@ async function renderLogFor(slot, dayMeta = {}, overrideDate = null) {
           <div class="set-num">${r.set_number}</div>
           <input data-ex="${esc(ex.exercise_name)}" data-idx="${idx}" class="setWt input" type="number" inputmode="decimal" step="0.5" value="${esc(r.weight_lbs)}" placeholder="lbs" />
           <input data-ex="${esc(ex.exercise_name)}" data-idx="${idx}" class="setReps input" type="number" inputmode="numeric" value="${esc(r.reps)}" placeholder="reps" />
+          <button data-ex="${esc(ex.exercise_name)}" data-idx="${idx}" class="setRepeat" title="Copy this weight/reps to remaining empty sets" style="background:transparent;border:0;color:var(--text-muted);cursor:pointer;font-size:.95rem;line-height:1;padding:0 .25rem;">↓</button>
           <button data-ex="${esc(ex.exercise_name)}" data-idx="${idx}" class="setDel" title="Remove set">×</button>
         </div>`).join('');
       const last = lastMap[ex.exercise_name];
@@ -1763,16 +1768,62 @@ async function renderLogFor(slot, dayMeta = {}, overrideDate = null) {
           </div>
         </div>`;
     }).join('');
-    const addExerciseUI = `
-      <div class="card" style="border-style:dashed;">
-        <div class="section-label" style="margin-bottom:.5rem;">Add an exercise to this session</div>
-        <div style="display:grid;grid-template-columns:1fr 64px 90px auto;gap:.375rem;align-items:start;">
+    const addType = logState.addType || 'exercise';
+    const addCardio = logState.addCardio || { cardio_type: 'Treadmill Walk', duration_min: '', notes: '' };
+    logState.addCardio = addCardio;
+    const tBtn = (k, l) => `<button data-add-type="${k}" class="addTypePick" type="button" style="flex:1;padding:.4rem .5rem;background:${addType===k?'var(--accent)':'var(--bg-elevated)'};color:${addType===k?'#000':'var(--text)'};border:1px solid ${addType===k?'var(--accent)':'var(--border)'};border-radius:.5rem;font-weight:600;font-size:.75rem;cursor:pointer;">${l}</button>`;
+    let typeSpecific = '';
+    if (addType === 'exercise') {
+      typeSpecific = `
+        <div style="display:grid;grid-template-columns:1fr 64px 90px;gap:.375rem;margin-bottom:.5rem;">
           <input id="addExName"  class="input" placeholder="Exercise name" />
           <input id="addExSets"  class="input" type="number" inputmode="numeric" min="1" max="10" placeholder="sets" style="text-align:center;" />
           <input id="addExReps"  class="input" placeholder="reps" style="text-align:center;" />
-          <button id="addExBtn" class="btn btn-primary" style="padding:.5rem .75rem;font-size:.8125rem;height:44px;">Add</button>
+        </div>`;
+    } else if (addType === 'core') {
+      const lib = (typeof CORE_EXERCISES !== 'undefined') ? Object.keys(CORE_EXERCISES) : [];
+      const opts = lib.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+      typeSpecific = `
+        <div style="display:grid;grid-template-columns:1fr 64px 90px;gap:.375rem;margin-bottom:.375rem;">
+          <input id="addExName"  class="input" placeholder="Core exercise (e.g. Plank)" list="addCoreList" />
+          <datalist id="addCoreList">${opts}</datalist>
+          <input id="addExSets"  class="input" type="number" inputmode="numeric" min="1" max="10" value="3" style="text-align:center;" />
+          <input id="addExReps"  class="input" placeholder="reps or 30s" style="text-align:center;" />
+        </div>`;
+    } else if (addType === 'stretching') {
+      const lib = (typeof STRETCHING_EXERCISES !== 'undefined') ? Object.keys(STRETCHING_EXERCISES) : [];
+      const opts = lib.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+      typeSpecific = `
+        <div style="display:grid;grid-template-columns:1fr 64px 90px;gap:.375rem;margin-bottom:.375rem;">
+          <input id="addExName"  class="input" placeholder="Stretch (e.g. Pigeon)" list="addStretchList" />
+          <datalist id="addStretchList">${opts}</datalist>
+          <input id="addExSets"  class="input" type="number" inputmode="numeric" min="1" max="10" value="1" style="text-align:center;" />
+          <input id="addExReps"  class="input" placeholder="duration or reps" style="text-align:center;" />
+        </div>`;
+    } else if (addType === 'cardio') {
+      const cardioOpts = (typeof CARDIO_TYPES !== 'undefined') ? CARDIO_TYPES : ['Treadmill Walk','Treadmill Run','Outdoor Walk','Outdoor Run','Stationary Bike','Rowing','Stairmaster','Elliptical','Jump Rope'];
+      typeSpecific = `
+        <div style="display:grid;grid-template-columns:1fr 100px;gap:.375rem;margin-bottom:.375rem;">
+          <select id="addCardioType" class="input">
+            ${cardioOpts.map(c => `<option value="${esc(c)}" ${addCardio.cardio_type===c?'selected':''}>${esc(c)}</option>`).join('')}
+          </select>
+          <input id="addCardioDur"  class="input" type="number" inputmode="numeric" min="1" max="240" value="${esc(addCardio.duration_min)}" placeholder="min" style="text-align:center;" />
         </div>
-        <p style="font-size:.7rem;color:var(--text-muted);margin-top:.375rem;">Adds for this session only — your plan stays unchanged.</p>
+        <input id="addCardioNotes" class="input" value="${esc(addCardio.notes)}" placeholder="Notes (optional)" style="margin-bottom:.375rem;font-size:.875rem;" />
+        <p style="font-size:.7rem;color:var(--text-muted);margin-bottom:.375rem;">Cardio is saved as a separate cardio session for today (so it shows up cleanly in History and Volume).</p>`;
+    }
+    const addExerciseUI = `
+      <div class="card" style="border-style:dashed;">
+        <div class="section-label" style="margin-bottom:.375rem;">Add to this session</div>
+        <div style="display:flex;gap:.25rem;margin-bottom:.5rem;flex-wrap:wrap;">
+          ${tBtn('exercise',   'Exercise')}
+          ${tBtn('cardio',     'Cardio')}
+          ${tBtn('core',       'Core')}
+          ${tBtn('stretching', 'Stretch')}
+        </div>
+        ${typeSpecific}
+        <button id="addExBtn" class="btn btn-primary" style="width:100%;font-size:.8125rem;height:44px;">Add</button>
+        <p style="font-size:.7rem;color:var(--text-muted);margin-top:.375rem;">Stays in this session only — your plan is untouched.</p>
       </div>`;
     const allBlocks = blocks
       ? blocks + addExerciseUI
@@ -1819,6 +1870,36 @@ async function renderLogFor(slot, dayMeta = {}, overrideDate = null) {
       paint();
       triggerAutoSave();
     }));
+    document.querySelectorAll('.setRepeat').forEach(el => el.addEventListener('click', () => {
+      const exName = el.dataset.ex;
+      const i = Number(el.dataset.idx);
+      // Get this exercise's rows in row order
+      const exRows = logState.rows.filter(r => r.exercise_name === exName);
+      const src = exRows[i];
+      if (!src) return;
+      const w = src.weight_lbs;
+      const r = src.reps;
+      if (w === '' && (r === '' || r == null)) {
+        toast('Fill in this set first.', 'error');
+        return;
+      }
+      let copied = 0;
+      for (let j = i + 1; j < exRows.length; j++) {
+        const tgt = exRows[j];
+        if (!tgt) continue;
+        if ((tgt.weight_lbs === '' || tgt.weight_lbs == null) && (tgt.reps === '' || tgt.reps == null)) {
+          tgt.weight_lbs = w;
+          tgt.reps = r;
+          copied++;
+        }
+      }
+      if (copied) {
+        toast('Copied to ' + copied + ' set' + (copied===1?'':'s') + '.');
+        paint();
+      } else {
+        toast('No empty sets after this one.', 'error');
+      }
+    }));
     document.querySelectorAll('.exRemove').forEach(el => el.addEventListener('click', () => {
       const exName = el.dataset.ex;
       if (!confirm('Remove "' + exName + '" from this session? (your plan is unchanged)')) return;
@@ -1826,21 +1907,52 @@ async function renderLogFor(slot, dayMeta = {}, overrideDate = null) {
       logState.rows = logState.rows.filter(r => r.exercise_name !== exName);
       paint();
     }));
+    document.querySelectorAll('.addTypePick').forEach(el => el.addEventListener('click', () => {
+      logState.addType = el.dataset.addType;
+      paint();
+    }));
     const addBtn = document.getElementById('addExBtn');
-    if (addBtn) addBtn.addEventListener('click', () => {
-      const nameEl = document.getElementById('addExName');
-      const setsEl = document.getElementById('addExSets');
-      const repsEl = document.getElementById('addExReps');
-      const name = (nameEl?.value || '').trim();
-      const sets = Number(setsEl?.value) || 3;
-      const reps = (repsEl?.value || '').trim() || '8-12';
-      if (!name) { toast('Exercise name required.', 'error'); return; }
+    if (addBtn) addBtn.addEventListener('click', async () => {
+      const t = logState.addType || 'exercise';
+
+      if (t === 'cardio') {
+        const cType = document.getElementById('addCardioType')?.value || '';
+        const cMin = Number(document.getElementById('addCardioDur')?.value) || 0;
+        const cNotes = document.getElementById('addCardioNotes')?.value || '';
+        if (!cMin) { toast('Enter cardio duration.', 'error'); return; }
+        addBtn.disabled = true; addBtn.textContent = 'Saving cardio…';
+        try {
+          await qLogSession({
+            slot_type: 'cardio',
+            sets: [],
+            cardio_type: cType,
+            cardio_duration_min: cMin,
+            notes: cNotes || null,
+            session_date: logState.session_date || null,
+          });
+          toast('Cardio saved.');
+          // Reset the cardio-form draft but keep the user on the same page
+          logState.addCardio = { cardio_type: cType, duration_min: '', notes: '' };
+        } catch (e) {
+          console.error(e); toast(e.message || 'Cardio save failed', 'error');
+        } finally {
+          addBtn.disabled = false; addBtn.textContent = 'Add';
+        }
+        paint();
+        return;
+      }
+
+      // Exercise / core / stretching: add as ad-hoc exercise within the session
+      const name = (document.getElementById('addExName')?.value || '').trim();
+      const sets = Number(document.getElementById('addExSets')?.value) || (t === 'stretching' ? 1 : 3);
+      const reps = (document.getElementById('addExReps')?.value || '').trim() || '8-12';
+      if (!name) { toast('Name required.', 'error'); return; }
       if (logState.exercises.some(e => e.exercise_name.toLowerCase() === name.toLowerCase())) {
         toast('That exercise is already in this session.', 'error');
         return;
       }
-      logState.exercises.push({ exercise_name: name, target_sets: sets, target_reps: reps });
-      // Pre-populate empty rows for the planned set count so the UI is ready to log
+      // Tag the type so we can show a slot chip later if we want
+      logState.exercises.push({ exercise_name: name, target_sets: sets, target_reps: reps, ad_hoc_type: t });
       for (let i = 1; i <= sets; i++) {
         logState.rows.push({ exercise_name: name, set_number: i, reps: '', weight_lbs: '' });
       }
@@ -1997,7 +2109,8 @@ function renderPlanEditor() {
     const slotBlock = (slot) => {
       const picked = data.exercises[slot] || [];
       const rows = picked.map((ex, i) => `
-        <div class="ex-edit-row">
+        <div class="ex-edit-row" data-slot-row="${slot}" data-i="${i}">
+          <span class="exDrag" title="Drag to reorder" aria-label="Drag handle" style="cursor:grab;color:var(--text-muted);font-size:1rem;line-height:1;padding:0 .25rem;user-select:none;display:flex;align-items:center;justify-content:center;">⋮⋮</span>
           <input data-slot="${slot}" data-i="${i}" class="exName input" value="${esc(ex.exercise_name)}" placeholder="Exercise name" />
           <input data-slot="${slot}" data-i="${i}" class="exSets input" type="number" inputmode="numeric" min="1" max="10" value="${esc(ex.target_sets)}" placeholder="sets" />
           <input data-slot="${slot}" data-i="${i}" class="exReps input" value="${esc(ex.target_reps)}" placeholder="reps" />
@@ -2009,7 +2122,7 @@ function renderPlanEditor() {
             <div class="flex items-center gap-2">${slotChip(slot)}<span class="font-semibold">${SLOT_LABEL[slot]}</span></div>
             <button data-slot="${slot}" class="exAdd text-sm text-emerald-400 hover:text-emerald-300">+ Add</button>
           </div>
-          <div id="slot-${slot}-rows">${rows || '<div class="text-sm text-zinc-500 py-2">No exercises yet.</div>'}</div>
+          <div id="slot-${slot}-rows" data-sortable-slot="${slot}">${rows || '<div class="text-sm text-zinc-500 py-2">No exercises yet.</div>'}</div>
         </div>`;
     };
 
@@ -2036,6 +2149,32 @@ function renderPlanEditor() {
       </div>`);
 
     $('splitType').addEventListener('change', e => { data.split_type = e.target.value; paint(); });
+    // Wire drag-and-drop reorder on each slot's exercise list (lazy-load Sortable.js).
+    (async () => {
+      try {
+        const Sortable = await loadSortable();
+        document.querySelectorAll('[data-sortable-slot]').forEach(container => {
+          const slot = container.getAttribute('data-sortable-slot');
+          if (container.dataset.sortableInited) return;
+          container.dataset.sortableInited = '1';
+          new Sortable(container, {
+            animation: 150,
+            handle: '.exDrag',
+            ghostClass: 'sortable-ghost',
+            chosenClass: 'sortable-chosen',
+            onEnd: (evt) => {
+              const arr = data.exercises[slot] || [];
+              if (evt.oldIndex === evt.newIndex) return;
+              const [moved] = arr.splice(evt.oldIndex, 1);
+              arr.splice(evt.newIndex, 0, moved);
+              paint();
+            },
+          });
+        });
+      } catch (e) {
+        console.warn('Sortable load failed; reorder disabled', e);
+      }
+    })();
     document.querySelectorAll('.slotPick').forEach(el => el.addEventListener('change', e => {
       const i = Number(el.dataset.day); data.days[i] = e.target.value; data.dayMeta[i] = { subSplits: [] }; paint();
     }));
@@ -2103,104 +2242,120 @@ function renderPlanEditor() {
    ========================================================= */
 async function renderHistory() {
   appEl().innerHTML = shell(`<h1 class="text-2xl font-bold mb-4">History</h1><div class="text-zinc-500">Loading...</div>`);
-  const rows = await qHistory(100);
+  const rows = await qHistory(200);
   if (rows.length === 0) {
     appEl().innerHTML = shell(`<h1 class="text-2xl font-bold mb-4">History</h1><div class="card text-zinc-500 text-sm">No sessions logged yet.</div>`);
     return;
   }
 
-  // Detect duplicate dates
-  const dateCounts = {};
-  rows.forEach(r => { dateCounts[r.session_date] = (dateCounts[r.session_date] || 0) + 1; });
-
-  // group by month
-  const groups = {};
+  // === Group sessions by date — combine multiple sessions on the same day into one row ===
+  const byDate = {};
   rows.forEach(r => {
-    const d = new Date(r.session_date + 'T00:00:00');
-    const key = d.toLocaleDateString(undefined, { year:'numeric', month:'long' });
-    (groups[key] = groups[key] || []).push(r);
+    if (!byDate[r.session_date]) byDate[r.session_date] = { date: r.session_date, sessions: [] };
+    byDate[r.session_date].sessions.push(r);
   });
+  const dateEntries = Object.values(byDate).sort((a, b) => b.date.localeCompare(a.date));
+
+  // Then group date entries by month for the section headers.
+  const groups = {};
+  dateEntries.forEach(de => {
+    const d = new Date(de.date + 'T00:00:00');
+    const key = d.toLocaleDateString(undefined, { year:'numeric', month:'long' });
+    (groups[key] = groups[key] || []).push(de);
+  });
+
+  const slotOrder = ['push','pull','legs','upper','lower','full','custom','cardio','rest'];
+
   const groupHtml = Object.entries(groups).map(([k, list]) => `
     <div class="mb-5">
       <div class="text-xs text-zinc-500 uppercase tracking-wider mb-2">${esc(k)}</div>
       <div class="card !p-0 divide-y divide-zinc-800">
-        ${list.map(r => {
-          const sets = r.set_logs || [];
-          const volume = sets.reduce((a,s) => a + (Number(s.reps)||0) * (Number(s.weight_lbs)||0), 0);
-          const isDupe = dateCounts[r.session_date] > 1;
+        ${list.map(de => {
+          // Aggregate across all sessions for this date
+          let totalVolume = 0, totalSets = 0, totalCardioMin = 0;
+          const slotsSeen = new Set();
+          de.sessions.forEach(s => {
+            slotsSeen.add(s.slot_type);
+            (s.set_logs || []).forEach(sl => {
+              totalVolume += (Number(sl.reps)||0) * (Number(sl.weight_lbs)||0);
+              totalSets += 1;
+            });
+            if (s.slot_type === 'cardio') totalCardioMin += Number(s.cardio_duration_min) || 0;
+          });
+          const orderedSlots = [...slotsSeen].sort((a, b) => {
+            const ia = slotOrder.indexOf(a); const ib = slotOrder.indexOf(b);
+            return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+          });
+          const summaryParts = [];
+          if (totalSets) summaryParts.push(`${totalSets} sets`);
+          if (totalVolume) summaryParts.push(`${fmtWt(totalVolume)} lbs vol`);
+          if (totalCardioMin) summaryParts.push(`${totalCardioMin}m cardio`);
+
           return `
             <details class="group">
-              <summary class="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-zinc-900/60">
-                <div class="flex items-center gap-3">
-                  ${slotChip(r.slot_type)}
-                  <span class="text-sm">${fmtDate(r.session_date)}</span>
-                  ${isDupe ? '<span class="text-[10px] text-amber-400 bg-amber-400/10 px-1.5 rounded">dupe</span>' : ''}
-                </div>
-                <div class="text-xs text-zinc-500">
-                  ${r.slot_type==='cardio' ? `${esc(r.cardio_type||'')}${r.cardio_duration_min?` \u00b7 ${r.cardio_duration_min}m`:''}` : `${sets.length} sets${volume?` \u00b7 ${fmtWt(volume)} lbs vol`:''}`}
+              <summary class="flex items-start justify-between px-4 py-3 cursor-pointer hover:bg-zinc-900/60 gap-3">
+                <div style="min-width:0;flex:1;">
+                  <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
+                    <span class="text-sm font-medium">${fmtDate(de.date)}</span>
+                    ${orderedSlots.map(t => slotChip(t)).join('')}
+                  </div>
+                  <div class="text-[11px] text-zinc-500 mt-1">${summaryParts.join(' · ') || '—'}</div>
                 </div>
               </summary>
               <div class="px-4 pb-3 text-sm">
-                ${r.slot_type==='cardio'
-                  ? `<div class="text-zinc-400">${esc(r.cardio_type||'')} ${r.cardio_duration_min?` \u00b7 ${r.cardio_duration_min} min`:''}</div>`
-                  : (() => {
-                      const byEx = {};
-                      sets.sort((a,b)=>a.set_number-b.set_number).forEach(s => (byEx[s.exercise_name]=byEx[s.exercise_name]||[]).push(s));
-                      return Object.entries(byEx).map(([name, list]) => `
-                        <div class="py-1">
-                          <div class="font-medium">${ytLink(name)}</div>
-                          <div class="text-zinc-400 text-xs">${list.map(s => `${s.weight_lbs ?? '-'}\u00d7${s.reps ?? '-'}`).join(' \u00b7 ')}</div>
-                        </div>`).join('');
-                    })()
-                }
-                ${r.notes ? `<div class="mt-2 pt-2 border-t border-zinc-800 text-zinc-400 text-xs whitespace-pre-wrap">${esc(r.notes)}</div>` : ''}
+                ${de.sessions.map(s => {
+                  const sets = s.set_logs || [];
+                  const head = `
+                    <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.25rem;">
+                      ${slotChip(s.slot_type)}
+                      <span class="text-zinc-500 text-[11px]">${s.slot_type==='cardio'
+                        ? esc(s.cardio_type || 'Cardio') + (s.cardio_duration_min?` · ${s.cardio_duration_min}m`:'')
+                        : `${sets.length} sets`}</span>
+                      <button data-sid="${esc(s.id)}" class="histDel" style="margin-left:auto;background:transparent;border:0;color:var(--text-muted);cursor:pointer;font-size:.7rem;text-decoration:underline;">delete</button>
+                    </div>`;
+                  if (s.slot_type === 'cardio') {
+                    return `<div class="py-2 border-b border-zinc-800 last:border-0">${head}${s.notes ? `<div class="text-zinc-500 text-xs mt-1 whitespace-pre-wrap">${esc(s.notes)}</div>` : ''}</div>`;
+                  }
+                  const byEx = {};
+                  sets.sort((a,b)=>a.set_number-b.set_number).forEach(sl => (byEx[sl.exercise_name]=byEx[sl.exercise_name]||[]).push(sl));
+                  const exHtml = Object.entries(byEx).map(([name, ls]) => `
+                    <div class="py-1">
+                      <div class="font-medium">${ytLink(name)}</div>
+                      <div class="text-zinc-400 text-xs">${ls.map(x => `${x.weight_lbs ?? '-'}×${x.reps ?? '-'}`).join(' · ')}</div>
+                    </div>`).join('');
+                  return `<div class="py-2 border-b border-zinc-800 last:border-0">${head}${exHtml}${s.notes ? `<div class="text-zinc-500 text-xs mt-1 whitespace-pre-wrap">${esc(s.notes)}</div>` : ''}</div>`;
+                }).join('')}
                 <div class="mt-3 pt-2 border-t border-zinc-800 flex gap-2 flex-wrap">
-                  <button data-sid="${r.id}" class="histDel btn btn-danger text-xs !py-1 !px-2">Delete</button>
-                  <button data-sid="${r.id}" data-date="${r.session_date}" data-slot="${r.slot_type}" class="histOverwrite btn btn-ghost text-xs !py-1 !px-2">Re-log this day (overwrite)</button>
-                  <button data-date="${r.session_date}" data-slot="${r.slot_type}" class="histAdd btn btn-ghost text-xs !py-1 !px-2">Add another entry</button>
+                  <button data-date="${esc(de.date)}" class="histAddDay btn btn-ghost text-xs !py-1 !px-2">+ Add another entry to this day</button>
                 </div>
               </div>
             </details>`;
         }).join('')}
       </div>
     </div>`).join('');
+
   appEl().innerHTML = shell(`<h1 class="text-2xl font-bold mb-4">History</h1>${groupHtml}`);
 
-  // Wire delete buttons
   document.querySelectorAll('.histDel').forEach(el => el.addEventListener('click', async (e) => {
-    e.stopPropagation();
+    e.stopPropagation(); e.preventDefault();
     if (!confirm('Delete this session permanently?')) return;
-    el.disabled = true; el.textContent = 'Deleting...';
+    el.disabled = true; el.textContent = 'deleting...';
     try {
       await qDeleteSession(el.dataset.sid);
       toast('Session deleted.');
       renderHistory();
     } catch (err) {
       console.error(err); toast(err.message || 'Delete failed', 'error');
-      el.disabled = false; el.textContent = 'Delete';
+      el.textContent = 'delete';
     }
   }));
-
-  // Wire overwrite buttons - delete old, then open log for that date
-  document.querySelectorAll('.histOverwrite').forEach(el => el.addEventListener('click', async (e) => {
+  document.querySelectorAll('.histAddDay').forEach(el => el.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (!confirm('This will delete the existing entry and let you re-log. Continue?')) return;
-    el.disabled = true; el.textContent = 'Preparing...';
-    try {
-      await qDeleteSession(el.dataset.sid);
-      const day = state.plan?.days?.find(d => d.slot_type === el.dataset.slot) || {};
-      renderLogFor(el.dataset.slot, day, el.dataset.date);
-    } catch (err) {
-      console.error(err); toast(err.message || 'Failed', 'error');
-      el.disabled = false; el.textContent = 'Re-log this day (overwrite)';
-    }
-  }));
-
-  // Wire add-another buttons - open log for that date without deleting
-  document.querySelectorAll('.histAdd').forEach(el => el.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const day = state.plan?.days?.find(d => d.slot_type === el.dataset.slot) || {};
-    renderLogFor(el.dataset.slot, day, el.dataset.date);
+    // Pick a default slot from today's plan
+    const dow = new Date(el.dataset.date + 'T12:00:00').getDay();
+    const day = state.plan?.days?.find(d => d.day_of_week === dow);
+    const slot = day?.slot_type && day.slot_type !== 'rest' ? day.slot_type : 'custom';
+    renderLogFor(slot, day || {}, el.dataset.date);
   }));
 }
 
@@ -4554,6 +4709,20 @@ async function captureFoodWithCamera(consume) {
       }
     }, 1000);
   });
+}
+
+let _sortableLoading = null;
+async function loadSortable() {
+  if (window.Sortable) return window.Sortable;
+  if (_sortableLoading) return _sortableLoading;
+  _sortableLoading = new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js';
+    s.onload = () => res(window.Sortable);
+    s.onerror = () => rej(new Error('Failed to load Sortable.js'));
+    document.head.appendChild(s);
+  });
+  return _sortableLoading;
 }
 
 // Backwards-compat alias for the old name (some places still call it).
