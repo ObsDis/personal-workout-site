@@ -250,6 +250,46 @@
   body.convo-mode { /* visible cue: subtle accent glow at edges of chat page */ }
   body.convo-mode .chat-page { box-shadow:inset 0 0 0 2px rgba(16,185,129,.45); }
 
+  /* ===== MOBILE FIT PASS ===== */
+  @media (max-width: 480px) {
+    main { padding-left:.875rem !important; padding-right:.875rem !important; }
+    .card { padding:.875rem; border-radius:.75rem; }
+    h1 { font-size:1.5rem !important; line-height:1.15 !important; letter-spacing:-0.02em; }
+    h1.text-2xl, h1.text-3xl { font-size:1.5rem !important; }
+    .section-label { font-size:.65rem; margin-bottom:.5rem; }
+    .form-grid { gap:.5rem !important; }
+    .input { padding:.625rem .75rem; font-size:16px; min-height:44px; }
+    .btn { padding:.625rem .875rem; font-size:.9375rem; min-height:44px; }
+    .chip { font-size:.625rem; padding:.2rem .5rem; }
+    .week-grid { gap:.25rem; }
+    .week-day { padding:.5rem .25rem; min-height:4rem; border-radius:.5rem; }
+    .day-label { font-size:.625rem; }
+    .exercise-row { padding:.625rem 0; }
+    .set-log-row { gap:.25rem; }
+    .set-log-row .setWt, .set-log-row .setReps { padding:.4rem; font-size:15px; }
+    .prog-tabs { padding:.1875rem; }
+    .prog-tab { padding:.4rem .25rem; font-size:.75rem; }
+    /* Chat header gets cramped with 6 things — tighten button padding */
+    .chat-header { padding:.5rem .625rem; gap:.375rem; }
+    .chat-header h2 { font-size:.9375rem; }
+    .chat-header button { padding:.125rem !important; }
+    /* The mid-workout add-type picker needs to wrap on narrow screens */
+    .addTypePick { font-size:.7rem !important; padding:.375rem .25rem !important; min-width:0; }
+    /* Bottom-nav is already adjusted; just verify chat tab still floats correctly. */
+  }
+  @media (max-width: 380px) {
+    .card { padding:.75rem; }
+    h1 { font-size:1.375rem !important; }
+    .input { padding:.5rem .625rem; }
+    .btn { padding:.5rem .625rem; font-size:.875rem; }
+    .week-day { min-height:3.5rem; padding:.375rem .125rem; }
+    .week-day .chip { font-size:.5625rem; padding:.125rem .375rem; }
+  }
+
+  /* === LOG WORKOUT CARD: drag visual + tighter mobile layout === */
+  .log-ex-card.sortable-ghost { opacity:.45; background:rgba(16,185,129,.06); }
+  .log-ex-card.sortable-chosen { box-shadow:0 0 0 2px var(--accent); }
+
 /* ===== UTILITIES ===== */
   .hide { display:none !important; }
   .scroll-smooth { scroll-behavior:smooth; }
@@ -1749,10 +1789,13 @@ async function renderLogFor(slot, dayMeta = {}, overrideDate = null) {
       const last = lastMap[ex.exercise_name];
       const lastLine = last ? `<div class="text-[11px] text-zinc-500">Last: ${last.weight_lbs ?? '?'} lbs × ${last.reps ?? '?'}</div>` : '';
       return `
-        <div class="card">
+        <div class="card log-ex-card" data-log-ex="${esc(ex.exercise_name)}">
           <div class="flex items-center justify-between mb-1">
-            <div class="font-semibold">${ytLink(ex.exercise_name)}</div>
-            <div class="text-xs text-zinc-500">Target: ${(byEx[ex.exercise_name] || []).length} × ${esc(ex.target_reps)}</div>
+            <div class="font-semibold" style="display:flex;align-items:center;gap:.5rem;min-width:0;">
+              <span class="logExDrag" title="Drag to reorder" aria-label="Drag handle" style="cursor:grab;color:var(--text-muted);font-size:.95rem;line-height:1;padding:0 .25rem;user-select:none;flex-shrink:0;">⋮⋮</span>
+              <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;">${ytLink(ex.exercise_name)}</span>
+            </div>
+            <div class="text-xs text-zinc-500" style="flex-shrink:0;">Target: ${(byEx[ex.exercise_name] || []).length} × ${esc(ex.target_reps)}</div>
           </div>
           ${lastLine}
           <div class="text-[11px] text-zinc-500 flex gap-2 px-1 mt-2 mb-1">
@@ -1840,7 +1883,7 @@ async function renderLogFor(slot, dayMeta = {}, overrideDate = null) {
           <a href="#/" style="font-size:.875rem;color:var(--text-muted);text-decoration:none;">Cancel</a>
         </div>
       </div>
-      <div class="space-y-3 mb-4">${allBlocks}</div>
+      <div id="logExList" class="space-y-3 mb-4">${allBlocks}</div>
       <div class="card mb-4">
         <label class="label">Notes (optional)</label>
         <textarea id="notes" class="input" rows="2" placeholder="Felt strong, 3s rest, etc.">${esc(logState.notes)}</textarea>
@@ -1870,6 +1913,36 @@ async function renderLogFor(slot, dayMeta = {}, overrideDate = null) {
       paint();
       triggerAutoSave();
     }));
+    // Lazy-load Sortable + init on the exercise list so users can drag to reorder mid-workout.
+    (async () => {
+      try {
+        const Sortable = await loadSortable();
+        const list = document.getElementById('logExList');
+        if (list && !list.dataset.sortableInited) {
+          list.dataset.sortableInited = '1';
+          new Sortable(list, {
+            animation: 150,
+            handle: '.logExDrag',
+            ghostClass: 'sortable-ghost',
+            chosenClass: 'sortable-chosen',
+            onEnd: (evt) => {
+              if (evt.oldIndex === evt.newIndex) return;
+              const arr = logState.exercises;
+              // The list contains the addExerciseUI as the LAST node — only reorder up to its position.
+              const exerciseCards = list.children.length - 1;
+              if (evt.oldIndex >= exerciseCards || evt.newIndex >= exerciseCards) {
+                paint();
+                return;
+              }
+              const [moved] = arr.splice(evt.oldIndex, 1);
+              arr.splice(evt.newIndex, 0, moved);
+              // No need to repaint — the DOM is already in the right order. But auto-save the draft.
+              if (typeof triggerAutoSave === 'function') triggerAutoSave();
+            },
+          });
+        }
+      } catch (e) { console.warn('Sortable load failed; mid-workout reorder disabled', e); }
+    })();
     document.querySelectorAll('.setRepeat').forEach(el => el.addEventListener('click', () => {
       const exName = el.dataset.ex;
       const i = Number(el.dataset.idx);
