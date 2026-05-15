@@ -954,12 +954,60 @@ async function qHistory(limit = 50) {
 }
 
 async function qLastWeightFor(exerciseName) {
+  // BACK-COMPAT: returns the most-recent single set. Kept for any callers still using it.
   const { data } = await sb.from('set_logs')
     .select('weight_lbs, reps, created_at, sessions(session_date)')
     .eq('exercise_name', exerciseName)
     .order('created_at', { ascending: false })
     .limit(1);
   return data?.[0] || null;
+}
+
+// Returns { lastHeaviest, lifetimePR } for an exercise.
+// lastHeaviest = the single heaviest set from the most-recent SESSION that included this exercise
+//                (NOT just the most-recent set logged, which could be a drop-set).
+// lifetimePR   = all-time heaviest: max weight, tie-break by reps.
+async function qExerciseStats(exerciseName) {
+  const uid = state.session?.user?.id;
+  if (!uid) return { lastHeaviest: null, lifetimePR: null };
+  // Pull a reasonable history window. 500 sets per exercise is plenty for personal use.
+  const { data, error } = await sb.from('set_logs')
+    .select('weight_lbs, reps, sessions!inner(session_date, user_id)')
+    .eq('exercise_name', exerciseName)
+    .eq('sessions.user_id', uid)
+    .not('weight_lbs', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(500);
+  if (error) { console.warn('qExerciseStats failed', error); return { lastHeaviest: null, lifetimePR: null }; }
+  const rows = (data || []).filter(r => Number(r.weight_lbs) > 0);
+  if (rows.length === 0) return { lastHeaviest: null, lifetimePR: null };
+
+  // Find the most recent session_date that has this exercise
+  let lastDate = null;
+  for (const r of rows) {
+    const d = r.sessions?.session_date;
+    if (d && (!lastDate || d > lastDate)) lastDate = d;
+  }
+
+  // Walk once: compute lifetime PR + heaviest within lastDate.
+  let lifetimePR = null;
+  let lastHeaviest = null;
+  const better = (a, b) => {
+    if (!a) return true;
+    if (b.weight > a.weight) return true;
+    if (b.weight === a.weight && b.reps > a.reps) return true;
+    return false;
+  };
+  for (const r of rows) {
+    const w = Number(r.weight_lbs) || 0;
+    const reps = Number(r.reps) || 0;
+    const cand = { weight: w, reps, date: r.sessions?.session_date };
+    if (better(lifetimePR, cand)) lifetimePR = cand;
+    if (lastDate && r.sessions?.session_date === lastDate && better(lastHeaviest, cand)) {
+      lastHeaviest = cand;
+    }
+  }
+  return { lastHeaviest, lifetimePR };
 }
 
 /* =========================================================
@@ -1728,15 +1776,15 @@ async function renderLogFor(slot, dayMeta = {}, overrideDate = null) {
     target_reps: e.target_reps,
   })) : [];
 
-  const fetchLastWeights = async () => {
+  const fetchExerciseStats = async () => {
     const out = {};
-    for (const ex of baseExercises) {
-      const last = await qLastWeightFor(ex.exercise_name);
-      out[ex.exercise_name] = last;
-    }
+    // Run in parallel — for a 6-exercise slot that's 6 simultaneous queries.
+    await Promise.all(baseExercises.map(async ex => {
+      out[ex.exercise_name] = await qExerciseStats(ex.exercise_name);
+    }));
     return out;
   };
-  const lastMap = await fetchLastWeights();
+  const statsMap = await fetchExerciseStats();
 
   // Try to load an existing draft for today
   const draft = !overrideDate ? await qLoadDraft(slot) : null;
@@ -1788,8 +1836,20 @@ async function renderLogFor(slot, dayMeta = {}, overrideDate = null) {
           <button data-ex="${esc(ex.exercise_name)}" data-idx="${idx}" class="setRepeat" title="Copy this weight/reps to remaining empty sets" style="background:transparent;border:0;color:var(--accent);cursor:pointer;font-size:1.05rem;line-height:1;padding:0 .25rem;font-weight:700;">↓</button>
           <button data-ex="${esc(ex.exercise_name)}" data-idx="${idx}" class="setDel" title="Remove set">×</button>
         </div>`).join('');
-      const last = lastMap[ex.exercise_name];
-      const lastLine = last ? `<div class="text-[11px] text-zinc-500">Last: ${last.weight_lbs ?? '?'} lbs × ${last.reps ?? '?'}</div>` : '';
+      const stat = statsMap[ex.exercise_name] || {};
+      const { lastHeaviest, lifetimePR } = stat;
+      const fmtBest = (b) => b ? `${fmtWt(b.weight)} lbs × ${b.reps}` : null;
+      const lastLine = (lastHeaviest || lifetimePR) ? `
+        <div style="display:flex;flex-wrap:wrap;gap:.75rem;font-size:.7rem;margin-bottom:.25rem;font-variant-numeric:tabular-nums;">
+          ${lastHeaviest ? `<span style="display:inline-flex;align-items:center;gap:.25rem;">
+            <span style="color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600;font-size:.6rem;">Last</span>
+            <span style="color:#93c5fd;font-weight:700;">${fmtBest(lastHeaviest)}</span>
+          </span>` : ''}
+          ${lifetimePR ? `<span style="display:inline-flex;align-items:center;gap:.25rem;">
+            <span style="color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600;font-size:.6rem;">PR</span>
+            <span style="color:#fcd34d;font-weight:700;">${fmtBest(lifetimePR)}</span>
+          </span>` : ''}
+        </div>` : '';
       return `
         <div class="card log-ex-card" data-log-ex="${esc(ex.exercise_name)}">
           <div class="flex items-center justify-between mb-1">
