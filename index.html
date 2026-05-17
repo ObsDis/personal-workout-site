@@ -2913,12 +2913,13 @@ async function renderProgress() {
       ${tabBtn('volume', 'Volume')}
       ${tabBtn('weight', 'Weight')}
       ${tabBtn('photos', 'Photos')}
+      ${tabBtn('measurements', 'Measurements')}
     </div>`;
 
   appEl().innerHTML = shell(`
     <div class="mb-3">
       <div class="section-label" style="margin-bottom:.25rem">Progress</div>
-      <h1 class="text-3xl font-extrabold tracking-tight">${sub==='prs'?'Personal Records':sub==='volume'?'Total Volume':sub==='weight'?'Body Weight':'Progress Photos'}</h1>
+      <h1 class="text-3xl font-extrabold tracking-tight">${sub==='prs'?'Personal Records':sub==='volume'?'Total Volume':sub==='weight'?'Body Weight':sub==='measurements'?'Body Measurements':'Progress Photos'}</h1>
     </div>
     ${tabsHtml}
     <div id="prog-body" style="margin-top:1rem"><div style="color:var(--text-muted);padding:1rem 0;">Loading…</div></div>
@@ -2928,6 +2929,7 @@ async function renderProgress() {
   if (sub === 'volume') return progressVolumeView();
   if (sub === 'weight') return progressWeightView();
   if (sub === 'photos') return progressPhotosView();
+  if (sub === 'measurements') return progressMeasurementsView();
 }
 
 async function progressPRsView() {
@@ -5826,6 +5828,182 @@ function mpEditor(pl) {
   paint();
 }
 
+
+// ---- Body measurements queries ----
+async function qBodyMeasurements(limit = 500) {
+  const { data, error } = await sb.from('body_measurements')
+    .select('*')
+    .order('measured_date', { ascending: true })
+    .limit(limit);
+  if (error) { console.warn('qBodyMeasurements failed', error); return []; }
+  return data || [];
+}
+
+async function qSaveBodyMeasurement(row) {
+  const uid = state.session.user.id;
+  const payload = { user_id: uid, ...row };
+  const { data, error } = await sb.from('body_measurements').insert(payload).select().single();
+  if (error) throw error;
+  return data;
+}
+
+async function qDeleteBodyMeasurement(id) {
+  const { error } = await sb.from('body_measurements').delete().eq('id', id);
+  if (error) throw error;
+}
+
+const MEASUREMENT_FIELDS = [
+  { key: 'chest_in',        label: 'Chest',         color: '#fcd34d' },
+  { key: 'waist_in',        label: 'Waist',         color: '#93c5fd' },
+  { key: 'bicep_left_in',   label: 'Bicep — left',  color: '#fca5a5' },
+  { key: 'bicep_right_in',  label: 'Bicep — right', color: '#f87171' },
+  { key: 'thigh_left_in',   label: 'Thigh — left',  color: '#c4b5fd' },
+  { key: 'thigh_right_in',  label: 'Thigh — right', color: '#a78bfa' },
+  { key: 'calf_left_in',    label: 'Calf — left',   color: '#6ee7b7' },
+  { key: 'calf_right_in',   label: 'Calf — right',  color: '#34d399' },
+];
+
+async function progressMeasurementsView() {
+  const body = document.getElementById('prog-body'); if (!body) return;
+  body.innerHTML = `<div class="card">Loading…</div>`;
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const rows = await qBodyMeasurements();
+
+  // Compose form draft. Pre-fill from most recent entry if any.
+  const latest = rows[rows.length - 1] || {};
+  let draft = {
+    measured_date: todayISO,
+    waist_in: '',
+    chest_in: '',
+    bicep_left_in: '',
+    bicep_right_in: '',
+    thigh_left_in: '',
+    thigh_right_in: '',
+    calf_left_in: '',
+    calf_right_in: '',
+    notes: '',
+  };
+
+  const paint = () => {
+    // Build per-measurement charts
+    const charts = MEASUREMENT_FIELDS.map(f => {
+      const points = rows
+        .filter(r => r[f.key] != null && r[f.key] !== '')
+        .map(r => ({ x: new Date(r.measured_date + 'T12:00:00'), y: Number(r[f.key]) }));
+      if (points.length === 0) {
+        return `<div class="card" style="margin-bottom:.75rem;padding:.875rem 1rem;">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.25rem;">
+            <span style="font-weight:600;font-size:.9375rem;color:${f.color};">${f.label}</span>
+            <span style="font-size:.75rem;color:var(--text-muted);">no data</span>
+          </div>
+        </div>`;
+      }
+      const last = points[points.length - 1];
+      const first = points[0];
+      const delta = last.y - first.y;
+      const deltaColor = delta < 0 ? '#34d399' : delta > 0 ? '#fbbf24' : 'var(--text-muted)';
+      const deltaText = points.length > 1
+        ? `<span style="color:${deltaColor};">${delta > 0 ? '+' : ''}${delta.toFixed(1)}″ all-time</span>`
+        : '';
+      return `<div class="card" style="margin-bottom:.75rem;padding:.875rem 1rem;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.5rem;">
+          <span style="font-weight:600;font-size:.9375rem;color:${f.color};">${f.label}</span>
+          <span style="font-size:.875rem;color:var(--text-secondary);font-variant-numeric:tabular-nums;">
+            <strong style="color:var(--text);">${last.y.toFixed(1)}″</strong>
+            ${deltaText ? ` · ${deltaText}` : ''}
+          </span>
+        </div>
+        ${lineChart(points, { unit: 'in' })}
+      </div>`;
+    }).join('');
+
+    // Recent entries list
+    const recent = rows.slice().reverse().slice(0, 20);
+    const list = recent.map(r => {
+      const parts = MEASUREMENT_FIELDS
+        .filter(f => r[f.key] != null && r[f.key] !== '')
+        .map(f => `<span style="color:${f.color};">${f.label.split(' — ')[0]}${f.label.includes('left')?' L':f.label.includes('right')?' R':''}: ${Number(r[f.key]).toFixed(1)}″</span>`)
+        .join(' · ');
+      return `<div class="exercise-row" style="padding:.625rem 0;">
+        <div style="min-width:0;flex:1;">
+          <div style="font-weight:600;font-size:.875rem;">${fmtDateShort(r.measured_date)}</div>
+          <div style="color:var(--text-muted);font-size:.7rem;margin-top:2px;line-height:1.4;">${parts || '—'}</div>
+          ${r.notes ? `<div style="color:var(--text-secondary);font-size:.7rem;margin-top:2px;">${esc(r.notes)}</div>` : ''}
+        </div>
+        <button data-id="${r.id}" class="bm-del" style="background:transparent;border:0;color:var(--danger);cursor:pointer;font-size:1.125rem;padding:.25rem .5rem;">&times;</button>
+      </div>`;
+    }).join('');
+
+    // The form
+    const formField = (f) => `<div>
+      <label class="label" style="font-size:.7rem;color:${f.color};">${f.label} (in)</label>
+      <input id="m_${f.key}" class="input" type="number" inputmode="decimal" step="0.125" min="0" max="80" value="${esc(draft[f.key])}" placeholder="${esc(f.label)}" />
+    </div>`;
+
+    body.innerHTML = `
+      <div class="card" style="margin-bottom:1rem;">
+        <div class="section-label" style="margin-bottom:.5rem;">Add measurements</div>
+        <label class="label" style="font-size:.7rem;">Date</label>
+        <input id="m_date" type="date" class="input" max="${todayISO}" value="${esc(draft.measured_date)}" style="margin-bottom:.625rem;" />
+
+        <div style="display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:.5rem;margin-bottom:.625rem;">
+          ${MEASUREMENT_FIELDS.map(formField).join('')}
+        </div>
+
+        <label class="label" style="font-size:.7rem;">Notes (optional)</label>
+        <input id="m_notes" class="input" value="${esc(draft.notes)}" placeholder="cold, after gym, etc." style="margin-bottom:.625rem;" />
+
+        <button id="m_save" class="btn btn-primary" style="width:100%;">Save measurements</button>
+        <p style="font-size:.7rem;color:var(--text-muted);margin-top:.5rem;">Fill in only the ones you measured — empty fields are skipped.</p>
+      </div>
+
+      ${rows.length === 0
+        ? `<div class="card" style="color:var(--text-muted);text-align:center;">No measurements yet. Add your first entry above.</div>`
+        : `<div class="section-label">Trends</div>${charts}${recent.length ? `<div class="section-label" style="margin-top:1rem;">Recent entries</div><div class="card">${list}</div>` : ''}`}
+    `;
+
+    // Wire form
+    const get = (id) => document.getElementById(id);
+    get('m_date').addEventListener('change', e => draft.measured_date = e.target.value || todayISO);
+    MEASUREMENT_FIELDS.forEach(f => {
+      const el = get('m_' + f.key);
+      if (el) el.addEventListener('input', e => draft[f.key] = e.target.value);
+    });
+    get('m_notes').addEventListener('input', e => draft.notes = e.target.value);
+    get('m_save').addEventListener('click', async () => {
+      const numOrNull = v => (v === '' || v == null) ? null : Number(v);
+      const payload = {
+        measured_date: draft.measured_date,
+        recorded_at: new Date(draft.measured_date + 'T12:00:00').toISOString(),
+        notes: draft.notes || null,
+      };
+      let any = false;
+      MEASUREMENT_FIELDS.forEach(f => {
+        const v = numOrNull(draft[f.key]);
+        payload[f.key] = v;
+        if (v != null && !isNaN(v)) any = true;
+      });
+      if (!any) { toast('Fill in at least one measurement.', 'error'); return; }
+      get('m_save').disabled = true; get('m_save').textContent = 'Saving…';
+      try {
+        await qSaveBodyMeasurement(payload);
+        toast('Saved.');
+        renderProgress();
+      } catch (e) {
+        console.error(e); toast(e.message || 'Save failed', 'error');
+        get('m_save').disabled = false; get('m_save').textContent = 'Save measurements';
+      }
+    });
+    document.querySelectorAll('.bm-del').forEach(el => el.addEventListener('click', async () => {
+      if (!confirm('Delete this entry?')) return;
+      try { await qDeleteBodyMeasurement(el.dataset.id); renderProgress(); }
+      catch (e) { console.error(e); toast('Delete failed', 'error'); }
+    }));
+  };
+  paint();
+}
+
+
 /* =========================================================
    ROUTER
    ========================================================= */
@@ -5843,6 +6021,7 @@ const ROUTES = {
   '#/progress/volume':  renderProgress,
   '#/progress/weight':  renderProgress,
   '#/progress/photos':  renderProgress,
+  '#/progress/measurements':  renderProgress,
   '#/chat':             renderChat,
   '#/nutrition':            renderNutrition,
   '#/nutrition/add':        renderNutrition,
