@@ -5,6 +5,10 @@ node_modules/
 .idea/
 *.bak
 *.backup
+# Capacitor native projects (regenerated per-machine)
+ios/
+android/
+.netlify/
 # secrets — never commit
 .env
 .env.*

@@ -470,6 +470,164 @@ const _ANON = localStorage.SUPABASE_ANON || SUPABASE_ANON;
 
 const CONFIG_OK = _URL && _ANON && !_URL.startsWith('PASTE_') && !_ANON.startsWith('PASTE_');
 
+/* =========================================================
+   NATIVE / REVENUECAT / PAYWALL
+   ========================================================= */
+const IS_NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+const REVENUECAT_IOS_KEY = "PASTE_YOUR_REVENUECAT_IOS_KEY_HERE";
+const ENTITLEMENT_ID = "pro";
+const OFFERING_ID = "default";
+const PRODUCT_MONTHLY = "workout_pro_monthly";
+const PRODUCT_YEARLY  = "workout_pro_yearly";
+
+function isSubscribed() {
+  const s = state.profile && state.profile.subscription_status;
+  return s === 'active' || s === 'trial' || s === 'comped';
+}
+
+async function initRevenueCat() {
+  if (!IS_NATIVE) return;
+  try {
+    const P = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Purchases;
+    if (!P) { console.warn('RevenueCat plugin missing'); return; }
+    if (!REVENUECAT_IOS_KEY || REVENUECAT_IOS_KEY.startsWith('PASTE_')) {
+      console.warn('RevenueCat key not configured');
+      return;
+    }
+    await P.configure({ apiKey: REVENUECAT_IOS_KEY, appUserID: state.session && state.session.user && state.session.user.id });
+    await syncSubscriptionFromRC();
+  } catch (e) { console.warn('RevenueCat init failed', e); }
+}
+
+async function syncSubscriptionFromRC() {
+  try {
+    const P = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Purchases;
+    if (!P) return;
+    const info = await P.getCustomerInfo();
+    const ci = info && info.customerInfo;
+    if (!ci) return;
+    const ent = ci.entitlements && ci.entitlements.active && ci.entitlements.active[ENTITLEMENT_ID];
+    const isActive = !!ent;
+    const upd = {};
+    if (isActive) {
+      const inTrial = ent.periodType === 'trial' || ent.periodType === 'TRIAL';
+      upd.subscription_status = inTrial ? 'trial' : 'active';
+      upd.subscription_product_id = ent.productIdentifier || null;
+      upd.subscription_expires_at = ent.expirationDate || null;
+      upd.subscription_source = 'apple';
+      upd.rc_user_id = ci.originalAppUserId || null;
+    } else {
+      // Don't clobber 'comped' (manual self-comp) when RC reports inactive
+      if (state.profile && state.profile.subscription_status === 'comped') return;
+      upd.subscription_status = 'free';
+    }
+    if (state.session && state.session.user && state.session.user.id) {
+      await sb.from('profiles').update({ ...upd, updated_at: new Date().toISOString() }).eq('id', state.session.user.id);
+      Object.assign(state.profile || {}, upd);
+    }
+  } catch (e) { console.warn('syncSubscriptionFromRC', e); }
+}
+
+async function presentCodeRedemption() {
+  try {
+    const P = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Purchases;
+    if (!P) { toast('Redemption only works in the app.', 'error'); return; }
+    if (P.presentCodeRedemptionSheet) {
+      await P.presentCodeRedemptionSheet();
+    } else {
+      toast('Update the app to redeem a code.', 'error');
+    }
+  } catch (e) { toast(e.message || 'Could not open code redemption', 'error'); }
+}
+
+async function purchasePackage(packageType) {
+  try {
+    const P = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Purchases;
+    if (!P) { toast('Purchasing only works in the app.', 'error'); return; }
+    const offerings = await P.getOfferings();
+    const offering = (offerings && offerings.current) || (offerings && offerings.all && offerings.all[OFFERING_ID]);
+    if (!offering) { toast('No offerings available.', 'error'); return; }
+    const pkgs = offering.availablePackages || [];
+    const pkg = pkgs.find(p => (packageType === 'monthly' ? p.packageType === 'MONTHLY' : p.packageType === 'ANNUAL'));
+    if (!pkg) { toast('Plan not available.', 'error'); return; }
+    await P.purchasePackage({ aPackage: pkg });
+    await syncSubscriptionFromRC();
+    toast('You are in. Welcome to Pro.');
+    location.hash = '#/'; route();
+  } catch (e) {
+    if (e && (e.userCancelled || e.code === '1' || /cancel/i.test(e.message || ''))) return;
+    toast(e.message || 'Purchase failed', 'error');
+  }
+}
+
+async function openSubscriptionManagement() {
+  if (IS_NATIVE) {
+    try {
+      const B = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser;
+      if (B) await B.open({ url: 'https://apps.apple.com/account/subscriptions' });
+    } catch (e) {}
+  } else {
+    window.open('https://apps.apple.com/account/subscriptions', '_blank');
+  }
+}
+
+async function restorePurchases() {
+  try {
+    const P = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Purchases;
+    if (!P) { toast('Restore only works in the app.', 'error'); return; }
+    await P.restorePurchases();
+    await syncSubscriptionFromRC();
+    toast('Purchases restored.');
+    route();
+  } catch (e) { toast(e.message || 'Restore failed', 'error'); }
+}
+
+function renderPaywall() {
+  const root = document.getElementById('app');
+  if (!root) return;
+  root.innerHTML = `
+    <div class="max-w-md mx-auto p-6 pt-12">
+      <h1 class="text-3xl font-bold mb-1">Workout Pro</h1>
+      <p class="text-zinc-400 mb-6">14-day free trial, then pick a plan. Cancel anytime in Settings.</p>
+      <div class="space-y-3">
+        <button id="btnBuyYearly" class="w-full p-5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-left">
+          <div class="text-xs uppercase tracking-wider opacity-80">Best value</div>
+          <div class="flex items-baseline justify-between">
+            <span class="text-2xl">Annual</span>
+            <span class="text-2xl">$59.99/yr</span>
+          </div>
+          <div class="text-xs opacity-80 mt-1">14-day free trial · Saves 37%</div>
+        </button>
+        <button id="btnBuyMonthly" class="w-full p-5 rounded-2xl bg-zinc-800 hover:bg-zinc-700 text-left">
+          <div class="flex items-baseline justify-between">
+            <span class="text-2xl">Monthly</span>
+            <span class="text-2xl">$7.99/mo</span>
+          </div>
+          <div class="text-xs text-zinc-400 mt-1">14-day free trial</div>
+        </button>
+      </div>
+      <div class="mt-6 grid grid-cols-2 gap-3">
+        <button id="btnRedeemCode" class="btn btn-ghost">Redeem code</button>
+        <button id="btnRestore" class="btn btn-ghost">Restore purchases</button>
+      </div>
+      <button id="btnSignOutPaywall" class="w-full mt-4 text-sm text-zinc-500 hover:text-zinc-300">Sign out</button>
+      <p class="text-xs text-zinc-500 mt-6 leading-relaxed">
+        Auto-renews unless cancelled at least 24 hours before the trial ends. Manage in App Store Settings.
+        <br><a href="https://github.com/obsdis/personal-workout-site/blob/main/PRIVACY_POLICY.md" target="_blank" class="underline">Privacy</a>
+        · <a href="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" target="_blank" class="underline">Terms (EULA)</a>
+      </p>
+    </div>`;
+  document.getElementById('btnBuyYearly').addEventListener('click', () => purchasePackage('annual'));
+  document.getElementById('btnBuyMonthly').addEventListener('click', () => purchasePackage('monthly'));
+  document.getElementById('btnRedeemCode').addEventListener('click', presentCodeRedemption);
+  document.getElementById('btnRestore').addEventListener('click', restorePurchases);
+  document.getElementById('btnSignOutPaywall').addEventListener('click', async () => {
+    try { await sb.auth.signOut(); } catch (e) {}
+    location.hash = '#/login'; location.reload();
+  });
+}
+
+
 // One-time URL key intake: ?_groqkey=gsk_... or ?_hfkey=hf_... lets us hand off
 // keys from another tab/page (e.g. Groq Console, HF Settings) without pasting.
 // Cleans the URL after reading so the keys don't sit in browser history.
@@ -1265,6 +1423,74 @@ function renderLogin() {
       <p class="text-xs text-zinc-500 mt-5 text-center">Private. Your data stays in your Supabase project.</p>
     </div>
   </div>`;
+  // Tab switching + email+password handlers (paywall-friendly auth that works inside Capacitor)
+  const tabPwdEl = document.getElementById('tabPwd');
+  const tabMagicEl = document.getElementById('tabMagic');
+  const setMode = (m) => {
+    if (!tabPwdEl) return;
+    tabPwdEl.style.borderColor = m === 'password' ? 'var(--accent)' : 'var(--border)';
+    tabPwdEl.style.color = m === 'password' ? 'var(--text)' : 'var(--text-muted)';
+    tabMagicEl.style.borderColor = m === 'magic' ? 'var(--accent)' : 'var(--border)';
+    tabMagicEl.style.color = m === 'magic' ? 'var(--text)' : 'var(--text-muted)';
+    document.getElementById('pwdIn').style.display = m === 'password' ? 'block' : 'none';
+    document.getElementById('btnSignIn').style.display = m === 'password' ? 'block' : 'none';
+    document.getElementById('btnMagic').style.display = m === 'magic' ? 'block' : 'none';
+    document.getElementById('btnReset').style.display = m === 'password' ? 'block' : 'none';
+    document.getElementById('btnSignUp').style.display = 'none';
+  };
+  if (tabPwdEl) tabPwdEl.addEventListener('click', () => setMode('password'));
+  if (tabMagicEl) tabMagicEl.addEventListener('click', () => setMode('magic'));
+
+  const btnSignIn = document.getElementById('btnSignIn');
+  if (btnSignIn) btnSignIn.addEventListener('click', async () => {
+    const email = $('emailIn').value.trim();
+    const password = $('pwdIn').value;
+    if (!email || !password) { toast('Email and password required.', 'error'); return; }
+    btnSignIn.disabled = true; btnSignIn.textContent = 'Signing in…';
+    try {
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+    } catch (e) {
+      toast(e.message || 'Sign in failed', 'error');
+      btnSignIn.disabled = false; btnSignIn.textContent = 'Sign in';
+    }
+  });
+
+  const lnkSignup = document.getElementById('lnkSignup');
+  if (lnkSignup) lnkSignup.addEventListener('click', (e) => {
+    e.preventDefault();
+    document.getElementById('btnSignIn').style.display = 'none';
+    document.getElementById('btnSignUp').style.display = 'block';
+  });
+  const btnSignUp = document.getElementById('btnSignUp');
+  if (btnSignUp) btnSignUp.addEventListener('click', async () => {
+    const email = $('emailIn').value.trim();
+    const password = $('pwdIn').value;
+    if (!email || password.length < 6) { toast('Email + 6+ char password required.', 'error'); return; }
+    btnSignUp.disabled = true; btnSignUp.textContent = 'Creating…';
+    try {
+      const { error } = await sb.auth.signUp({
+        email, password,
+        options: { emailRedirectTo: IS_NATIVE ? 'workout://callback' : (window.location.origin + window.location.pathname) },
+      });
+      if (error) throw error;
+      toast('Account created.');
+    } catch (e) {
+      toast(e.message || 'Sign up failed', 'error');
+      btnSignUp.disabled = false; btnSignUp.textContent = 'Create account';
+    }
+  });
+
+  const btnReset = document.getElementById('btnReset');
+  if (btnReset) btnReset.addEventListener('click', async () => {
+    const email = $('emailIn').value.trim();
+    if (!email) { toast('Enter your email first.', 'error'); return; }
+    try {
+      await sb.auth.resetPasswordForEmail(email, { redirectTo: IS_NATIVE ? 'workout://callback' : (window.location.origin + window.location.pathname) });
+      toast('Password reset email sent.');
+    } catch (e) { toast(e.message || 'Reset failed', 'error'); }
+  });
+
   $('btnMagic').addEventListener('click', async () => {
     const email = $('emailIn').value.trim();
     if (!email) { toast('Enter an email.', 'error'); return; }
@@ -6034,6 +6260,12 @@ function route() {
   const hash = location.hash || '#/';
   if (!state.session && hash !== '#/login') { location.hash = '#/login'; return; }
   if (state.session && !state.profile && hash !== '#/onboard') { location.hash = '#/onboard'; return; }
+  // Native paywall gate: require an active sub/trial/comp before app routes render.
+  if (IS_NATIVE && state.session && state.profile && !isSubscribed() && hash !== '#/onboard') {
+    renderPaywall();
+    updateChatBubble && updateChatBubble();
+    return;
+  }
   const fn = ROUTES[hash] || renderDashboard;
   fn();
   updateChatBubble();
@@ -6081,6 +6313,30 @@ async function boot() {
     }
   } catch (e) {
     console.error('Boot error', e);
+  }
+  // Native: deep-link auth callback (workout://callback) — Supabase magic link / OAuth
+  if (IS_NATIVE && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+    try {
+      window.Capacitor.Plugins.App.addListener('appUrlOpen', async ({ url }) => {
+        try {
+          if (!url || !url.startsWith('workout://')) return;
+          const u = new URL(url.replace('workout://', 'https://workout.local/'));
+          const params = new URLSearchParams(u.hash.startsWith('#') ? u.hash.slice(1) : u.search.slice(1));
+          const access_token = params.get('access_token');
+          const refresh_token = params.get('refresh_token');
+          if (access_token && refresh_token) {
+            await sb.auth.setSession({ access_token, refresh_token });
+            state.session = (await sb.auth.getSession()).data.session;
+            state.profile = await qProfile();
+            location.hash = '#/'; route();
+          }
+        } catch (e) { console.warn('appUrlOpen handler', e); }
+      });
+    } catch (e) { console.warn('App listener setup failed', e); }
+  }
+  // Initialize RevenueCat once session + profile are loaded.
+  if (IS_NATIVE && state.session) {
+    try { await initRevenueCat(); } catch (e) { console.warn(e); }
   }
   sb.auth.onAuthStateChange((evt, sess) => {
     if ((evt === 'SIGNED_IN' || evt === 'TOKEN_REFRESHED') && sess) {

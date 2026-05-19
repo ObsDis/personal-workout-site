@@ -1,0 +1,45 @@
+<!-- Add these into ios/App/App/Info.plist after running `npx cap add ios`.
+     Capacitor doesn't auto-write usage descriptions, you must add them or Apple rejects the build. -->
+
+<key>NSCameraUsageDescription</key>
+<string>Workout uses your camera to scan barcodes for food entries and to take progress photos.</string>
+
+<key>NSPhotoLibraryUsageDescription</key>
+<string>Workout lets you upload progress photos from your photo library.</string>
+
+<key>NSPhotoLibraryAddUsageDescription</key>
+<string>Workout can save your progress photos to your photo library.</string>
+
+<key>NSMicrophoneUsageDescription</key>
+<string>Workout uses your microphone for voice conversations with the AI assistant.</string>
+
+<key>NSSpeechRecognitionUsageDescription</key>
+<string>Workout transcribes your speech to text so you can talk to the AI assistant hands-free.</string>
+
+<key>NSBluetoothAlwaysUsageDescription</key>
+<string>Workout connects to compatible Bluetooth body scales to read your weight automatically.</string>
+
+<key>NSAppTransportSecurity</key>
+<dict>
+  <key>NSAllowsArbitraryLoads</key>
+  <false/>
+</dict>
+
+<key>LSApplicationQueriesSchemes</key>
+<array>
+  <string>youtube</string>
+  <string>vnd.youtube</string>
+</array>
+
+<!-- Deep-link URL scheme for Supabase magic-link callback -->
+<key>CFBundleURLTypes</key>
+<array>
+  <dict>
+    <key>CFBundleURLSchemes</key>
+    <array>
+      <string>workout</string>
+    </array>
+    <key>CFBundleURLName</key>
+    <string>com.obsidiandist.workout</string>
+  </dict>
+</array>

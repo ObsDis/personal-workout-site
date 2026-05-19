@@ -1,0 +1,23 @@
+{
+  "appId": "com.obsidiandist.workout",
+  "appName": "Workout",
+  "webDir": ".",
+  "ios": {
+    "scheme": "Workout",
+    "contentInset": "automatic",
+    "limitsNavigationsToAppBoundDomains": false,
+    "preferredContentMode": "mobile"
+  },
+  "server": {
+    "iosScheme": "workout",
+    "cleartext": false
+  },
+  "plugins": {
+    "App": {
+      "launchUrl": ""
+    },
+    "Camera": {
+      "androidScaleType": "CENTER_CROP"
+    }
+  }
+}
