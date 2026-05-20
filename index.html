@@ -1094,6 +1094,71 @@ async function qLoadDraft(slot_type) {
   return data[0];
 }
 
+/* =========================================================
+   LOCAL DRAFT (mid-workout state survives nav-away even if
+   no values are entered yet, and preserves preset structure
+   + mid-session add/remove decisions).
+   ========================================================= */
+function _localDraftKey(slot_type) {
+  const uid = state.session && state.session.user && state.session.user.id || 'anon';
+  return 'workout_draft__' + uid + '__' + today() + '__' + slot_type;
+}
+function saveLocalDraft(slot_type, logState) {
+  try {
+    const key = _localDraftKey(slot_type);
+    const payload = {
+      slot_type,
+      saved_at: new Date().toISOString(),
+      session_date: logState.session_date || today(),
+      notes: logState.notes || '',
+      cardio_type: logState.cardio_type || null,
+      cardio_duration_min: logState.cardio_duration_min || null,
+      exercises: (logState.exercises || []).map(e => ({
+        exercise_name: e.exercise_name,
+        target_sets: e.target_sets,
+        target_reps: e.target_reps,
+        ad_hoc_type: e.ad_hoc_type || null,
+      })),
+      rows: (logState.rows || []).map(r => ({
+        exercise_name: r.exercise_name,
+        set_number: r.set_number,
+        reps: r.reps,
+        weight_lbs: r.weight_lbs,
+      })),
+    };
+    localStorage.setItem(key, JSON.stringify(payload));
+  } catch (e) { console.warn('saveLocalDraft failed', e); }
+}
+function loadLocalDraft(slot_type) {
+  try {
+    const raw = localStorage.getItem(_localDraftKey(slot_type));
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    // Only honour drafts from today
+    if (d.session_date && d.session_date !== today()) return null;
+    return d;
+  } catch (e) { return null; }
+}
+function clearLocalDraft(slot_type) {
+  try { localStorage.removeItem(_localDraftKey(slot_type)); } catch (e) {}
+}
+// Sweep yesterday-and-older drafts on each load (cheap, bounds the keyspace).
+function pruneOldLocalDrafts() {
+  try {
+    const t = today();
+    const toRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('workout_draft__')) {
+        const parts = k.split('__');
+        if (parts.length >= 4 && parts[2] !== t) toRemove.push(k);
+      }
+    }
+    toRemove.forEach(k => localStorage.removeItem(k));
+  } catch (e) {}
+}
+
+
 async function qDeleteSession(sessionId) {
   await sb.from('set_logs').delete().eq('session_id', sessionId);
   const { error } = await sb.from('sessions').delete().eq('id', sessionId);
@@ -2012,41 +2077,83 @@ async function renderLogFor(slot, dayMeta = {}, overrideDate = null) {
   };
   const statsMap = await fetchExerciseStats();
 
-  // Try to load an existing draft for today
+  // Try to load drafts: local (full structure incl. preset rows + mid-session edits)
+  // + server (cross-device set values). Local takes priority for structure.
+  pruneOldLocalDrafts();
+  const local = !overrideDate ? loadLocalDraft(slot) : null;
   const draft = !overrideDate ? await qLoadDraft(slot) : null;
+
+  // Always build the preset structure from the plan first so empty rows never vanish.
+  const buildPresetRows = (exList) => exList.flatMap(ex => {
+    const sets = [];
+    for (let i = 1; i <= (ex.target_sets || 3); i++) {
+      sets.push({ exercise_name: ex.exercise_name, set_number: i, reps: '', weight_lbs: '' });
+    }
+    return sets;
+  });
 
   const logState = {
     slot_type: slot,
     session_date: overrideDate || null,
-    notes: draft?.notes || '',
-    rows: draft && draft.set_logs?.length
-      ? draft.set_logs.sort((a,b) => a.set_number - b.set_number).map(s => ({
-          exercise_name: s.exercise_name,
-          set_number: s.set_number,
-          reps: s.reps ?? '',
-          weight_lbs: s.weight_lbs ?? '',
-        }))
-      : baseExercises.flatMap(ex => {
-          const sets = [];
-          for (let i = 1; i <= (ex.target_sets || 3); i++) {
-            sets.push({ exercise_name: ex.exercise_name, set_number: i, reps: '', weight_lbs: '' });
-          }
-          return sets;
-        }),
+    notes: (local && local.notes) || draft?.notes || '',
+    exercises: null,
+    rows: null,
   };
   if (draft) _currentSessionId = draft.id;
 
-  // Build session exercise list: base from plan + any extras the user has rows for + any added this session.
-  if (!logState.exercises) {
-    const seenNames = new Set(baseExercises.map(e => e.exercise_name));
-    const extras = [];
-    (logState.rows || []).forEach(r => {
-      if (r.exercise_name && !seenNames.has(r.exercise_name)) {
-        seenNames.add(r.exercise_name);
-        extras.push({ exercise_name: r.exercise_name, target_sets: 3, target_reps: '8-12' });
-      }
-    });
-    logState.exercises = [...baseExercises, ...extras];
+  if (local && Array.isArray(local.exercises) && local.exercises.length) {
+    // Local snapshot is authoritative — it knows about mid-session adds, removes, custom set counts.
+    logState.exercises = local.exercises.map(e => ({ ...e }));
+    logState.rows = (local.rows || []).map(r => ({ ...r }));
+    // Overlay any newer server-draft values onto local (last-write-wins on values only).
+    if (draft && Array.isArray(draft.set_logs) && draft.set_logs.length) {
+      const byKey = {};
+      logState.rows.forEach((r, i) => { byKey[r.exercise_name + '#' + r.set_number] = i; });
+      draft.set_logs.forEach(s => {
+        const k = s.exercise_name + '#' + s.set_number;
+        if (k in byKey) {
+          const row = logState.rows[byKey[k]];
+          // Prefer server value only if local row is still empty
+          if (row.reps === '' || row.reps == null) row.reps = s.reps ?? '';
+          if (row.weight_lbs === '' || row.weight_lbs == null) row.weight_lbs = s.weight_lbs ?? '';
+        }
+      });
+    }
+  } else {
+    // No local snapshot. Start from plan preset; overlay server-draft values; add extras the server has.
+    logState.exercises = baseExercises.map(e => ({ ...e }));
+    logState.rows = buildPresetRows(logState.exercises);
+    if (draft && Array.isArray(draft.set_logs) && draft.set_logs.length) {
+      const draftSorted = [...draft.set_logs].sort((a,b) => a.set_number - b.set_number);
+      const byKey = {};
+      logState.rows.forEach((r, i) => { byKey[r.exercise_name + '#' + r.set_number] = i; });
+      const seenExNames = new Set(logState.exercises.map(e => e.exercise_name));
+      draftSorted.forEach(s => {
+        const k = s.exercise_name + '#' + s.set_number;
+        if (k in byKey) {
+          logState.rows[byKey[k]].reps = s.reps ?? '';
+          logState.rows[byKey[k]].weight_lbs = s.weight_lbs ?? '';
+        } else if (seenExNames.has(s.exercise_name)) {
+          // Extra set beyond the preset count for an existing exercise
+          logState.rows.push({
+            exercise_name: s.exercise_name,
+            set_number: s.set_number,
+            reps: s.reps ?? '',
+            weight_lbs: s.weight_lbs ?? '',
+          });
+        } else {
+          // Mid-session add that the user had typed into earlier
+          logState.exercises.push({ exercise_name: s.exercise_name, target_sets: 3, target_reps: '8-12' });
+          seenExNames.add(s.exercise_name);
+          logState.rows.push({
+            exercise_name: s.exercise_name,
+            set_number: s.set_number,
+            reps: s.reps ?? '',
+            weight_lbs: s.weight_lbs ?? '',
+          });
+        }
+      });
+    }
   }
 
   const paint = () => {
@@ -2183,15 +2290,19 @@ async function renderLogFor(slot, dayMeta = {}, overrideDate = null) {
       <button id="btnSave" class="btn btn-primary w-full">Finish workout</button>`);
 
     const triggerAutoSave = debounce(() => qAutoSave(logState));
+    // Local snapshot persists the full session structure (preset rows, mid-session adds/removes,
+    // entered values). It runs synchronously on every change so nav-away can't lose it.
+    const saveLocal = () => saveLocalDraft(slot, logState);
+    saveLocal();  // initial snapshot so a draft exists from the first paint
     document.querySelectorAll('.setWt').forEach(el => el.addEventListener('input', e => {
       const ex = el.dataset.ex, idx = Number(el.dataset.idx);
       const row = (logState.rows.filter(r => r.exercise_name === ex))[idx];
-      if (row) { row.weight_lbs = e.target.value === '' ? '' : Number(e.target.value); triggerAutoSave(); }
+      if (row) { row.weight_lbs = e.target.value === '' ? '' : Number(e.target.value); saveLocal(); triggerAutoSave(); }
     }));
     document.querySelectorAll('.setReps').forEach(el => el.addEventListener('input', e => {
       const ex = el.dataset.ex, idx = Number(el.dataset.idx);
       const row = (logState.rows.filter(r => r.exercise_name === ex))[idx];
-      if (row) { row.reps = e.target.value === '' ? '' : Number(e.target.value); triggerAutoSave(); }
+      if (row) { row.reps = e.target.value === '' ? '' : Number(e.target.value); saveLocal(); triggerAutoSave(); }
     }));
     document.querySelectorAll('.setDel').forEach(el => el.addEventListener('click', () => {
       const ex = el.dataset.ex, idx = Number(el.dataset.idx);
@@ -2203,7 +2314,7 @@ async function renderLogFor(slot, dayMeta = {}, overrideDate = null) {
       const remaining = logState.rows.filter(r => r.exercise_name === ex);
       remaining.forEach((r, i) => { r.set_number = i + 1; });
       paint();
-      triggerAutoSave();
+      saveLocal(); triggerAutoSave();
     }));
     // Lazy-load Sortable + init on the exercise list so users can drag to reorder mid-workout.
     (async () => {
@@ -2229,7 +2340,7 @@ async function renderLogFor(slot, dayMeta = {}, overrideDate = null) {
               const [moved] = arr.splice(evt.oldIndex, 1);
               arr.splice(evt.newIndex, 0, moved);
               // No need to repaint — the DOM is already in the right order. But auto-save the draft.
-              if (typeof triggerAutoSave === 'function') triggerAutoSave();
+              if (typeof triggerAutoSave === 'function') { saveLocal(); triggerAutoSave(); }
             },
           });
         }
@@ -2260,6 +2371,7 @@ async function renderLogFor(slot, dayMeta = {}, overrideDate = null) {
       }
       if (copied) {
         toast('Copied to ' + copied + ' set' + (copied===1?'':'s') + '.');
+        saveLocal(); triggerAutoSave();
         paint();
       } else {
         toast('No empty sets after this one.', 'error');
@@ -2270,6 +2382,7 @@ async function renderLogFor(slot, dayMeta = {}, overrideDate = null) {
       if (!confirm('Remove "' + exName + '" from this session? (your plan is unchanged)')) return;
       logState.exercises = logState.exercises.filter(e => e.exercise_name !== exName);
       logState.rows = logState.rows.filter(r => r.exercise_name !== exName);
+      saveLocal();
       paint();
     }));
     document.querySelectorAll('.addTypePick').forEach(el => el.addEventListener('click', () => {
@@ -2346,6 +2459,7 @@ async function renderLogFor(slot, dayMeta = {}, overrideDate = null) {
       } else {
         toast('Added to session.');
       }
+      saveLocal();
       paint();
     });
     document.querySelectorAll('.addSet').forEach(el => el.addEventListener('click', () => {
@@ -2354,9 +2468,9 @@ async function renderLogFor(slot, dayMeta = {}, overrideDate = null) {
       const nextNum = exRows.length ? Math.max(...exRows.map(r => r.set_number)) + 1 : 1;
       logState.rows.push({ exercise_name: ex, set_number: nextNum, reps: '', weight_lbs: '' });
       paint();
-      triggerAutoSave();
+      saveLocal(); triggerAutoSave();
     }));
-    $('notes').addEventListener('input', e => { logState.notes = e.target.value; triggerAutoSave(); });
+    $('notes').addEventListener('input', e => { logState.notes = e.target.value; saveLocal(); triggerAutoSave(); });
     $('btnSave').addEventListener('click', async () => {
       clearTimeout(_autoSaveTimer);
       const setsToSave = logState.rows
@@ -2373,6 +2487,7 @@ async function renderLogFor(slot, dayMeta = {}, overrideDate = null) {
       $('btnSave').disabled = true; $('btnSave').textContent = 'Finishing...';
       try {
         await qFinishSession(logState);
+        clearLocalDraft(slot);
         toast('Workout saved.');
         nav('#/');
       } catch (e) {
@@ -2435,6 +2550,7 @@ async function renderLogCardio(dayMeta = {}, overrideDate = null) {
     $('btnSave').disabled = true; $('btnSave').textContent = 'Finishing...';
     try {
       await qFinishSession(logState);
+      clearLocalDraft('cardio');
       toast('Cardio saved.');
       nav('#/');
     } catch (e) {
