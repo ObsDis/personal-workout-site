@@ -477,9 +477,9 @@ const IS_NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && wi
 const REVENUECAT_IOS_KEY = "PASTE_YOUR_REVENUECAT_IOS_KEY_HERE";
 const ENTITLEMENT_ID = "pro";
 const OFFERING_ID = "default";
-const PRODUCT_MONTHLY  = "workout_pro_monthly";   // $39.99/mo subscription
-const PRODUCT_YEARLY   = "workout_pro_yearly";    // $383.88/yr subscription (displayed as $31.99/mo billed annually)
-const PRODUCT_LIFETIME = "workout_pro_lifetime";  // $999.99 non-consumable IAP
+const PRODUCT_MONTHLY  = "Liftly_pro_monthly";   // $39.99/mo subscription
+const PRODUCT_YEARLY   = "Liftly_pro_yearly";    // $383.88/yr subscription (displayed as $31.99/mo billed annually)
+const PRODUCT_LIFETIME = "Liftly_pro_Lifetime";  // $999.99 non-consumable IAP (note capital L)
 
 function isSubscribed() {
   const s = state.profile && state.profile.subscription_status;
@@ -513,6 +513,7 @@ async function syncSubscriptionFromRC() {
     if (isActive) {
       const inTrial = ent.periodType === 'trial' || ent.periodType === 'TRIAL';
       const isLifetime = ent.productIdentifier === PRODUCT_LIFETIME ||
+                         ent.productIdentifier === 'Liftly_pro_Lifetime' ||
                          ent.productIdentifier === 'workout_pro_lifetime' ||
                          (ent.willRenew === false && !ent.expirationDate);
       upd.subscription_status = isLifetime ? 'lifetime' : (inTrial ? 'trial' : 'active');
