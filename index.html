@@ -477,12 +477,13 @@ const IS_NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && wi
 const REVENUECAT_IOS_KEY = "PASTE_YOUR_REVENUECAT_IOS_KEY_HERE";
 const ENTITLEMENT_ID = "pro";
 const OFFERING_ID = "default";
-const PRODUCT_MONTHLY = "workout_pro_monthly";
-const PRODUCT_YEARLY  = "workout_pro_yearly";
+const PRODUCT_MONTHLY  = "workout_pro_monthly";   // $39.99/mo subscription
+const PRODUCT_YEARLY   = "workout_pro_yearly";    // $383.88/yr subscription (displayed as $31.99/mo billed annually)
+const PRODUCT_LIFETIME = "workout_pro_lifetime";  // $999.99 non-consumable IAP
 
 function isSubscribed() {
   const s = state.profile && state.profile.subscription_status;
-  return s === 'active' || s === 'trial' || s === 'comped';
+  return s === 'active' || s === 'trial' || s === 'comped' || s === 'lifetime';
 }
 
 async function initRevenueCat() {
@@ -511,14 +512,17 @@ async function syncSubscriptionFromRC() {
     const upd = {};
     if (isActive) {
       const inTrial = ent.periodType === 'trial' || ent.periodType === 'TRIAL';
-      upd.subscription_status = inTrial ? 'trial' : 'active';
+      const isLifetime = ent.productIdentifier === PRODUCT_LIFETIME ||
+                         ent.productIdentifier === 'workout_pro_lifetime' ||
+                         (ent.willRenew === false && !ent.expirationDate);
+      upd.subscription_status = isLifetime ? 'lifetime' : (inTrial ? 'trial' : 'active');
       upd.subscription_product_id = ent.productIdentifier || null;
       upd.subscription_expires_at = ent.expirationDate || null;
       upd.subscription_source = 'apple';
       upd.rc_user_id = ci.originalAppUserId || null;
     } else {
       // Don't clobber 'comped' (manual self-comp) when RC reports inactive
-      if (state.profile && state.profile.subscription_status === 'comped') return;
+      if (state.profile && (state.profile.subscription_status === 'comped' || state.profile.subscription_status === 'lifetime')) return;
       upd.subscription_status = 'free';
     }
     if (state.session && state.session.user && state.session.user.id) {
@@ -560,6 +564,31 @@ async function purchasePackage(packageType) {
   }
 }
 
+async function purchaseLifetime() {
+  try {
+    const P = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Purchases;
+    if (!P) { toast('Purchasing only works in the app.', 'error'); return; }
+    const offerings = await P.getOfferings();
+    const offering = (offerings && offerings.current) || (offerings && offerings.all && offerings.all[OFFERING_ID]);
+    if (!offering) { toast('No offerings available.', 'error'); return; }
+    const pkgs = offering.availablePackages || [];
+    // Lifetime IAP — RevenueCat marks non-subscription IAPs as packageType 'LIFETIME' or 'CUSTOM'.
+    const pkg = pkgs.find(p =>
+      p.packageType === 'LIFETIME' ||
+      (p.product && p.product.identifier === PRODUCT_LIFETIME) ||
+      p.identifier === '$rc_lifetime'
+    );
+    if (!pkg) { toast('Lifetime plan not available.', 'error'); return; }
+    await P.purchasePackage({ aPackage: pkg });
+    await syncSubscriptionFromRC();
+    toast('You are in for life. Welcome to Pro.');
+    location.hash = '#/'; route();
+  } catch (e) {
+    if (e && (e.userCancelled || e.code === '1' || /cancel/i.test(e.message || ''))) return;
+    toast(e.message || 'Purchase failed', 'error');
+  }
+}
+
 async function openSubscriptionManagement() {
   if (IS_NATIVE) {
     try {
@@ -586,24 +615,32 @@ function renderPaywall() {
   const root = document.getElementById('app');
   if (!root) return;
   root.innerHTML = `
-    <div class="max-w-md mx-auto p-6 pt-12">
+    <div class="max-w-md mx-auto p-6 pt-12 pb-16">
       <h1 class="text-3xl font-bold mb-1">Workout Pro</h1>
-      <p class="text-zinc-400 mb-6">14-day free trial, then pick a plan. Cancel anytime in Settings.</p>
+      <p class="text-zinc-400 mb-6">14-day free trial on subscriptions. Cancel anytime in Settings.</p>
       <div class="space-y-3">
         <button id="btnBuyYearly" class="w-full p-5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-left">
-          <div class="text-xs uppercase tracking-wider opacity-80">Best value</div>
-          <div class="flex items-baseline justify-between">
+          <div class="text-xs uppercase tracking-wider opacity-80">Best value · save 20%</div>
+          <div class="flex items-baseline justify-between mt-1">
             <span class="text-2xl">Annual</span>
-            <span class="text-2xl">$59.99/yr</span>
+            <span class="text-2xl">$31.99/mo</span>
           </div>
-          <div class="text-xs opacity-80 mt-1">14-day free trial · Saves 37%</div>
+          <div class="text-xs opacity-80 mt-1">Billed $383.88/yr · 14-day free trial</div>
         </button>
         <button id="btnBuyMonthly" class="w-full p-5 rounded-2xl bg-zinc-800 hover:bg-zinc-700 text-left">
           <div class="flex items-baseline justify-between">
             <span class="text-2xl">Monthly</span>
-            <span class="text-2xl">$7.99/mo</span>
+            <span class="text-2xl">$39.99/mo</span>
           </div>
           <div class="text-xs text-zinc-400 mt-1">14-day free trial</div>
+        </button>
+        <button id="btnBuyLifetime" class="w-full p-5 rounded-2xl border border-amber-500/40 bg-gradient-to-br from-amber-500/10 to-zinc-900 hover:from-amber-500/20 text-left">
+          <div class="text-xs uppercase tracking-wider text-amber-400 font-semibold">One time · keep forever</div>
+          <div class="flex items-baseline justify-between mt-1">
+            <span class="text-2xl">Lifetime</span>
+            <span class="text-2xl text-amber-300">$999.99</span>
+          </div>
+          <div class="text-xs text-zinc-400 mt-1">Pay once. Never bill again.</div>
         </button>
       </div>
       <div class="mt-6 grid grid-cols-2 gap-3">
@@ -612,13 +649,14 @@ function renderPaywall() {
       </div>
       <button id="btnSignOutPaywall" class="w-full mt-4 text-sm text-zinc-500 hover:text-zinc-300">Sign out</button>
       <p class="text-xs text-zinc-500 mt-6 leading-relaxed">
-        Auto-renews unless cancelled at least 24 hours before the trial ends. Manage in App Store Settings.
+        Subscriptions auto-renew unless cancelled at least 24 hours before the trial ends. Lifetime is a one-time purchase, no recurring charges. Manage in App Store Settings.
         <br><a href="https://github.com/obsdis/personal-workout-site/blob/main/PRIVACY_POLICY.md" target="_blank" class="underline">Privacy</a>
         · <a href="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" target="_blank" class="underline">Terms (EULA)</a>
       </p>
     </div>`;
   document.getElementById('btnBuyYearly').addEventListener('click', () => purchasePackage('annual'));
   document.getElementById('btnBuyMonthly').addEventListener('click', () => purchasePackage('monthly'));
+  document.getElementById('btnBuyLifetime').addEventListener('click', purchaseLifetime);
   document.getElementById('btnRedeemCode').addEventListener('click', presentCodeRedemption);
   document.getElementById('btnRestore').addEventListener('click', restorePurchases);
   document.getElementById('btnSignOutPaywall').addEventListener('click', async () => {

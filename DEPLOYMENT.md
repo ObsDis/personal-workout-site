@@ -101,8 +101,9 @@ In Xcode:
 
 | Reference Name | Product ID | Price | Duration | Free Trial |
 |---|---|---|---|---|
-| Workout Pro Monthly | `workout_pro_monthly` | $7.99 | 1 Month | 14-day free trial |
-| Workout Pro Yearly | `workout_pro_yearly` | $59.99 | 1 Year | 14-day free trial |
+| Workout Pro Monthly | `workout_pro_monthly` | $39.99 | 1 Month (auto-renew) | 14-day free trial |
+| Workout Pro Yearly | `workout_pro_yearly` | $383.88 | 1 Year (auto-renew) | 14-day free trial — displayed as $31.99/mo billed annually |
+| Workout Pro Lifetime | `workout_pro_lifetime` | $999.99 | One-time (non-consumable IAP) | No trial |
 
 For each, fill in:
 - **Reference Name** (only you see this)
@@ -120,12 +121,14 @@ Save and submit each subscription for review (Apple reviews them alongside the a
 Back in RevenueCat:
 
 1. **Products** → **+ New** → enter each App Store product ID:
-   - `workout_pro_monthly`
-   - `workout_pro_yearly`
+   - `workout_pro_monthly` (subscription)
+   - `workout_pro_yearly` (subscription)
+   - `workout_pro_lifetime` (non-consumable IAP — add as a separate Product, not Subscription)
 2. **Entitlements** → **+ New** → name it `pro`. Attach both products to this entitlement.
 3. **Offerings** → **+ New** → call it `default`. Add two packages:
    - **Monthly** → links to `workout_pro_monthly`
    - **Annual** → links to `workout_pro_yearly`
+   - **Lifetime** → links to `workout_pro_lifetime` (RevenueCat package type: `LIFETIME`)
 
 Mark the offering as **Current**.
 
@@ -251,4 +254,7 @@ To push updates: change code in this repo, run `npx cap sync ios && npx cap open
 - Apple takes 30% of paid subscriptions (15% in year 2 of a sub, and 15% always if you're enrolled in the **Apple Small Business Program** — sign up at https://developer.apple.com/app-store/small-business-program — applies if you earn <$1M/yr from the App Store)
 
 Your effective cost per sub:
-- $7.99 × 0.85 (Small Business 15% take) = $6.79 — apply for the program to keep more.
+- $39.99 × 0.85 (Small Business 15% take) = $33.99/mo net
+- $383.88 × 0.85 = $326.30/yr net
+- $999.99 × 0.85 = $849.99 net per lifetime sale
+- Apply for the Apple Small Business Program early — keeps Apple's cut at 15% until you cross $1M/yr.
