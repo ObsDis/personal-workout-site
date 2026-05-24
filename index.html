@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="theme-color" content="#0a0a0a" />
-<title>Workout</title>
+<title>Liftly.ai</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230a0a0a'/%3E%3Crect x='15' y='38' width='12' height='24' rx='3' fill='%2310b981'/%3E%3Crect x='73' y='38' width='12' height='24' rx='3' fill='%2310b981'/%3E%3Crect x='27' y='42' width='8' height='16' rx='2' fill='%2310b981'/%3E%3Crect x='65' y='42' width='8' height='16' rx='2' fill='%2310b981'/%3E%3Crect x='35' y='46' width='30' height='8' rx='2' fill='%2310b981'/%3E%3C/svg%3E" />
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%230a0a0a'/%3E%3Crect x='27' y='68' width='22' height='44' rx='5' fill='%2310b981'/%3E%3Crect x='131' y='68' width='22' height='44' rx='5' fill='%2310b981'/%3E%3Crect x='49' y='76' width='14' height='28' rx='4' fill='%2310b981'/%3E%3Crect x='117' y='76' width='14' height='28' rx='4' fill='%2310b981'/%3E%3Crect x='63' y='83' width='54' height='14' rx='4' fill='%2310b981'/%3E%3C/svg%3E" />
 <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22Workout%22%2C%22short_name%22%3A%22Workout%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230a0a0a%22%2C%22theme_color%22%3A%22%230a0a0a%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%2520viewBox%3D'0%25200%2520512%2520512'%253E%253Crect%2520width%3D'512'%2520height%3D'512'%2520rx%3D'100'%2520fill%3D'%25230a0a0a'%2F%253E%253Crect%2520x%3D'77'%2520y%3D'194'%2520width%3D'61'%2520height%3D'124'%2520rx%3D'12'%2520fill%3D'%252310b981'%2F%253E%253Crect%2520x%3D'374'%2520y%3D'194'%2520width%3D'61'%2520height%3D'124'%2520rx%3D'12'%2520fill%3D'%252310b981'%2F%253E%253Crect%2520x%3D'138'%2520y%3D'214'%2520width%3D'40'%2520height%3D'84'%2520rx%3D'10'%2520fill%3D'%252310b981'%2F%253E%253Crect%2520x%3D'334'%2520y%3D'214'%2520width%3D'40'%2520height%3D'84'%2520rx%3D'10'%2520fill%3D'%252310b981'%2F%253E%253Crect%2520x%3D'178'%2520y%3D'234'%2520width%3D'156'%2520height%3D'44'%2520rx%3D'10'%2520fill%3D'%252310b981'%2F%253E%253C%2Fsvg%253E%22%2C%22sizes%22%3A%22512x512%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%7D" />
@@ -1307,7 +1307,7 @@ function topbar() {
   return `
   <nav class="top-nav">
     <div style="max-width:42rem;margin:0 auto;padding:.75rem 1rem;display:flex;align-items:center;justify-content:space-between;">
-      <a href="#/" style="font-weight:700;letter-spacing:-0.02em;font-size:1.125rem;text-decoration:none;color:var(--text);">Workout</a>
+      <a href="#/" style="font-weight:700;letter-spacing:-0.02em;font-size:1.125rem;text-decoration:none;color:var(--text);">Liftly.ai</a>
       <div style="display:flex;align-items:center;gap:.25rem;">
         ${topLink('#/', 'Today')}
         ${topLink('#/plan', 'Plan')}
@@ -1507,24 +1507,58 @@ function renderNotConfigured() {
    ========================================================= */
 function renderLogin() {
   appEl().innerHTML = `
-  <div class="min-h-screen flex items-center justify-center p-4">
-    <div class="card max-w-sm w-full">
-      <div class="text-center" style="margin-bottom:1.5rem;">
-        <div style="width:56px;height:56px;background:linear-gradient(135deg,#10b981,#059669);border-radius:1rem;margin:0 auto 1rem;display:flex;align-items:center;justify-content:center;">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"><line x1="4" y1="12" x2="20" y2="12"/><rect x="2" y="9" width="4" height="6" rx="1"/><rect x="18" y="9" width="4" height="6" rx="1"/><rect x="6" y="10" width="3" height="4" rx="0.5"/><rect x="15" y="10" width="3" height="4" rx="0.5"/></svg>
+  <div style="min-height:100vh;padding:1rem;display:flex;align-items:center;justify-content:center;">
+    <div class="card" style="max-width:420px;width:100%;padding:1.5rem;">
+      <div class="text-center" style="margin-bottom:1.25rem;">
+        <div style="width:64px;height:64px;background:linear-gradient(135deg,#10b981,#059669);border-radius:1.125rem;margin:0 auto .75rem;display:flex;align-items:center;justify-content:center;box-shadow:0 0 28px rgba(16,185,129,.35);">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"><line x1="4" y1="12" x2="20" y2="12"/><rect x="2" y="9" width="4" height="6" rx="1"/><rect x="18" y="9" width="4" height="6" rx="1"/><rect x="6" y="10" width="3" height="4" rx="0.5"/><rect x="15" y="10" width="3" height="4" rx="0.5"/></svg>
         </div>
-        <div style="font-size:1.75rem;font-weight:800;letter-spacing:-0.03em;margin-bottom:.25rem;">Workout</div>
-        <p style="color:var(--text-muted);font-size:.875rem;">Plan splits, log sets, track progress.</p>
+        <div style="font-size:1.75rem;font-weight:800;letter-spacing:-0.03em;">Liftly.ai</div>
+        <p style="color:var(--text-muted);font-size:.875rem;margin-top:.25rem;">AI training and nutrition coach. Built for results.</p>
+      </div>
+
+      <!-- Benefits -->
+      <div style="display:flex;flex-direction:column;gap:.4rem;margin:0 0 1rem;font-size:.825rem;">
+        <div style="display:flex;align-items:center;gap:.5rem;color:var(--text);"><span style="color:var(--accent);">✓</span> Custom workout plans, drag-and-drop, PR tracking</div>
+        <div style="display:flex;align-items:center;gap:.5rem;color:var(--text);"><span style="color:var(--accent);">✓</span> AI coach by text or voice, hands-free mid-workout</div>
+        <div style="display:flex;align-items:center;gap:.5rem;color:var(--text);"><span style="color:var(--accent);">✓</span> Barcode + AI photo macros, meal plans, body metrics</div>
+      </div>
+
+      <!-- Pricing tiers (disclosed before signup per Apple Guideline 3.1.2) -->
+      <div style="background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.18);border-radius:.75rem;padding:.875rem;margin-bottom:1rem;">
+        <div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:700;margin-bottom:.5rem;">14-day free trial</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;font-size:.85rem;">
+          <div><span style="color:var(--text-muted);">Monthly</span> <strong style="color:var(--text);">$39.99/mo</strong></div>
+          <div><span style="color:var(--text-muted);">Annual</span> <strong style="color:var(--text);">$31.99/mo</strong> <span style="color:var(--text-muted);font-size:.7rem;">($383.88/yr)</span></div>
+          <div style="grid-column:1/-1;"><span style="color:var(--text-muted);">Lifetime</span> <strong style="color:#fcd34d;">$999.99</strong> <span style="color:var(--text-muted);font-size:.7rem;">one time</span></div>
+        </div>
+        <div style="font-size:.7rem;color:var(--text-muted);margin-top:.5rem;line-height:1.4;">Subscriptions auto-renew unless cancelled 24h before trial ends. Lifetime is one-time, no recurring charges. Manage in App Store Settings.</div>
+      </div>
+
+      <!-- Auth: email+password (Apple-friendly) with magic-link fallback -->
+      <div style="display:flex;gap:.4rem;margin-bottom:.75rem;">
+        <button id="tabPwd"   style="flex:1;padding:.5rem;border-radius:.5rem;border:1px solid var(--accent);background:transparent;color:var(--text);font-weight:600;font-size:.825rem;cursor:pointer;">Password</button>
+        <button id="tabMagic" style="flex:1;padding:.5rem;border-radius:.5rem;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-weight:600;font-size:.825rem;cursor:pointer;">Magic link</button>
       </div>
 
       <div>
-        <label class="label">Email (magic link)</label>
+        <label class="label">Email</label>
         <input id="emailIn" type="email" class="input" placeholder="you@example.com" autocomplete="email" />
-        <button id="btnMagic" class="btn btn-ghost w-full mt-3">Send magic link</button>
+        <input id="pwdIn"   type="password" class="input mt-2" placeholder="Password (6+ chars)" autocomplete="current-password" />
+        <button id="btnSignIn" class="btn btn-primary w-full mt-3">Sign in</button>
+        <button id="btnSignUp" class="btn btn-primary w-full mt-3" style="display:none;">Create account</button>
+        <button id="btnMagic"  class="btn btn-ghost   w-full mt-3" style="display:none;">Send magic link</button>
+        <div style="display:flex;justify-content:space-between;font-size:.75rem;margin-top:.5rem;">
+          <a href="#" id="lnkSignup" style="color:var(--accent);">New here? Create account</a>
+          <button id="btnReset" style="background:none;border:0;color:var(--text-muted);font-size:.75rem;cursor:pointer;padding:0;">Forgot password</button>
+        </div>
         <p id="magicMsg" class="text-xs text-zinc-500 mt-3 hidden"></p>
       </div>
 
-      <p class="text-xs text-zinc-500 mt-5 text-center">Private. Your data stays in your Supabase project.</p>
+      <p class="text-xs text-zinc-500 mt-4 text-center" style="line-height:1.5;">
+        By signing up you agree to our <a href="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" target="_blank" style="color:var(--text-muted);text-decoration:underline;">Terms (EULA)</a> and
+        <a href="https://github.com/ObsDis/personal-workout-site/blob/main/PRIVACY_POLICY.md" target="_blank" style="color:var(--text-muted);text-decoration:underline;">Privacy Policy</a>.
+      </p>
     </div>
   </div>`;
   // Tab switching + email+password handlers (paywall-friendly auth that works inside Capacitor)
@@ -6415,8 +6449,9 @@ function route() {
   const hash = location.hash || '#/';
   if (!state.session && hash !== '#/login') { location.hash = '#/login'; return; }
   if (state.session && !state.profile && hash !== '#/onboard') { location.hash = '#/onboard'; return; }
-  // Native paywall gate: require an active sub/trial/comp before app routes render.
-  if (IS_NATIVE && state.session && state.profile && !isSubscribed() && hash !== '#/onboard') {
+  // Paywall gate: require an active sub/trial/comp/lifetime before app routes render.
+  // Applies to both web and native so Apple sees the same paid experience.
+  if (state.session && state.profile && !isSubscribed() && hash !== '#/onboard') {
     renderPaywall();
     updateChatBubble && updateChatBubble();
     return;
