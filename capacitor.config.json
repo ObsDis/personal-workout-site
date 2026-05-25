@@ -1,12 +1,13 @@
 {
   "appId": "com.obsidiandist.workout",
-  "appName": "Workout",
-  "webDir": ".",
+  "appName": "BarbellMind",
+  "webDir": "www",
   "ios": {
     "scheme": "Workout",
-    "contentInset": "automatic",
+    "contentInset": "never",
     "limitsNavigationsToAppBoundDomains": false,
-    "preferredContentMode": "mobile"
+    "preferredContentMode": "mobile",
+    "backgroundColor": "#0a0a0a"
   },
   "server": {
     "iosScheme": "workout",
@@ -18,6 +19,11 @@
     },
     "Camera": {
       "androidScaleType": "CENTER_CROP"
+    },
+    "Keyboard": {
+      "resize": "native",
+      "style": "dark",
+      "resizeOnFullScreen": true
     }
   }
 }
