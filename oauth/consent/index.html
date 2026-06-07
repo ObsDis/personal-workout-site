@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Authorize · BarbellMind</title>
+<style>
+  :root { --bg:#0a0a0b; --card:#141416; --hair:#26262b; --text:#f5f5f7; --muted:#9b9ba3; --green:#34D399; --danger:#fb7185; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; display:flex; min-height:100vh; align-items:center; justify-content:center; padding:20px; }
+  .card { width:100%; max-width:420px; background:var(--card); border:1px solid var(--hair); border-radius:20px; padding:26px; }
+  h1 { font-size:19px; margin:0 0 4px; letter-spacing:-.01em; }
+  p.sub { color:var(--muted); font-size:13px; margin:0 0 20px; }
+  label { display:block; font-size:12px; color:var(--muted); margin:14px 0 6px; font-weight:600; }
+  input { width:100%; background:#0f0f11; border:1px solid var(--hair); border-radius:12px; padding:12px 13px; color:var(--text); font-size:15px; }
+  input:focus { outline:none; border-color:var(--green); }
+  button { width:100%; border:0; border-radius:12px; padding:13px; font-size:15px; font-weight:700; cursor:pointer; margin-top:14px; }
+  .primary { background:var(--green); color:#06291d; }
+  .ghost { background:transparent; color:var(--muted); border:1px solid var(--hair); }
+  .deny { background:transparent; color:var(--danger); border:1px solid var(--hair); }
+  .row { display:flex; gap:10px; }
+  .row button { margin-top:0; }
+  .scopes { background:#0f0f11; border:1px solid var(--hair); border-radius:12px; padding:12px 14px; margin:14px 0; }
+  .scopes li { color:var(--muted); font-size:13px; }
+  .msg { font-size:13px; margin-top:14px; min-height:18px; }
+  .msg.err { color:var(--danger); }
+  .brand { display:flex; align-items:center; gap:9px; margin-bottom:18px; }
+  .dot { width:30px; height:30px; border-radius:9px; background:linear-gradient(135deg,#34D399,#0EA5E9); }
+  .hide { display:none; }
+  .muted-link { background:none; border:0; color:var(--green); font-weight:600; width:auto; padding:6px 0; margin:0; font-size:13px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand"><div class="dot"></div><strong>BarbellMind</strong></div>
+
+    <div id="loginView" class="hide">
+      <h1>Sign in</h1>
+      <p class="sub">Sign in to authorize this connection to your BarbellMind data.</p>
+      <label for="email">Email</label>
+      <input id="email" type="email" autocomplete="email" placeholder="you@example.com" />
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" placeholder="Your password" />
+      <button class="primary" id="btnLogin">Sign in</button>
+      <button class="muted-link" id="btnMagic">Email me a magic link instead</button>
+      <div class="msg" id="loginMsg"></div>
+    </div>
+
+    <div id="consentView" class="hide">
+      <h1 id="consentTitle">Authorize access</h1>
+      <p class="sub">This app is requesting access to your BarbellMind account.</p>
+      <div class="scopes">
+        <div style="font-size:12px;color:var(--muted);font-weight:600;margin-bottom:6px;">It will be able to read and update:</div>
+        <ul style="margin:0;padding-left:18px;" id="scopeList">
+          <li>Workouts, plans, and personal records</li>
+          <li>Nutrition logs and macro targets</li>
+          <li>Apple Health metrics and body weight</li>
+        </ul>
+      </div>
+      <div class="row">
+        <button class="primary" id="btnApprove">Approve</button>
+        <button class="deny" id="btnDeny">Deny</button>
+      </div>
+      <button class="muted-link" id="btnSignout">Not you? Sign out</button>
+      <div class="msg" id="consentMsg"></div>
+    </div>
+
+    <div id="statusView">
+      <h1>One moment</h1>
+      <p class="sub" id="statusMsg">Loading authorization request…</p>
+    </div>
+  </div>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+const SUPABASE_URL  = "https://ssgwydumjovvjjusayeq.supabase.co"
+const SUPABASE_ANON  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNzZ3d5ZHVtam92dmpqdXNheWVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMzQ0NTAsImV4cCI6MjA5MjYxMDQ1MH0.3we37B59WdJ6nPz8D7JPLj--ZswyEjhAZOplISMJMeY"
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON)
+
+const $ = (id) => document.getElementById(id)
+const show = (id) => { for (const v of ['loginView','consentView','statusView']) $(v).classList.toggle('hide', v !== id) }
+const params = new URLSearchParams(location.search)
+const authorizationId = params.get('authorization_id')
+
+function fail(where, msg) { const el = $(where); el.textContent = msg; el.classList.add('err') }
+
+async function start() {
+  if (!authorizationId) { show('statusView'); $('statusMsg').textContent = 'Missing authorization_id. Open this page from the app you are connecting.'; return }
+  const { data: { session } } = await sb.auth.getSession()
+  if (!session) { show('loginView'); return }
+  await loadConsent()
+}
+
+async function loadConsent() {
+  show('statusView'); $('statusMsg').textContent = 'Loading authorization request…'
+  try {
+    const { data, error } = await sb.auth.oauth.getAuthorizationDetails(authorizationId)
+    if (error || !data) { show('statusView'); $('statusMsg').textContent = 'Could not load this request: ' + (error?.message || 'unknown error'); return }
+    if (!('authorization_id' in data) && data.redirect_url) { location.href = data.redirect_url; return }
+    const name = data.client?.name || 'This application'
+    $('consentTitle').textContent = 'Authorize ' + name
+    if (data.scope && data.scope.trim()) {
+      // Keep the friendly capability list, but also reflect requested OIDC scopes.
+      const extra = data.scope.split(' ').filter(Boolean).map((s) => `<li>${s}</li>`).join('')
+      if (extra) $('scopeList').insertAdjacentHTML('beforeend', extra)
+    }
+    show('consentView')
+  } catch (e) { show('statusView'); $('statusMsg').textContent = 'Error: ' + (e?.message || e) }
+}
+
+$('btnLogin').addEventListener('click', async () => {
+  $('loginMsg').textContent = ''; $('loginMsg').classList.remove('err')
+  const email = $('email').value.trim(), password = $('password').value
+  if (!email || !password) { fail('loginMsg', 'Enter your email and password.'); return }
+  $('btnLogin').textContent = 'Signing in…'
+  const { error } = await sb.auth.signInWithPassword({ email, password })
+  $('btnLogin').textContent = 'Sign in'
+  if (error) { fail('loginMsg', error.message); return }
+  await loadConsent()
+})
+
+$('btnMagic').addEventListener('click', async () => {
+  $('loginMsg').textContent = ''; $('loginMsg').classList.remove('err')
+  const email = $('email').value.trim()
+  if (!email) { fail('loginMsg', 'Enter your email first.'); return }
+  const redirectTo = location.origin + location.pathname + '?authorization_id=' + encodeURIComponent(authorizationId)
+  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo } })
+  if (error) { fail('loginMsg', error.message); return }
+  $('loginMsg').textContent = 'Check your email for a sign-in link, then come back here.'
+})
+
+$('btnApprove').addEventListener('click', async () => {
+  $('btnApprove').textContent = 'Approving…'
+  const { data, error } = await sb.auth.oauth.approveAuthorization(authorizationId)
+  if (error) { $('btnApprove').textContent = 'Approve'; fail('consentMsg', error.message); return }
+  location.href = data.redirect_url
+})
+
+$('btnDeny').addEventListener('click', async () => {
+  const { data, error } = await sb.auth.oauth.denyAuthorization(authorizationId)
+  if (error) { fail('consentMsg', error.message); return }
+  location.href = data.redirect_url
+})
+
+$('btnSignout').addEventListener('click', async () => { await sb.auth.signOut(); show('loginView') })
+
+start()
+</script>
+</body>
+</html>
