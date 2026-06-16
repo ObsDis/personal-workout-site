@@ -19,3 +19,13 @@ keys.txt
 *.pat
 .api-keys
 .api-keys.*
+
+# secrets / Apple API keys — never commit (public repo)
+Apple/
+*.p8
+# internal working notes — keep private
+PROJECT_HISTORY.md
+CLAUDE_CONTEXT.md
+SUBMIT_CHECKLIST.md
+BARBELLMIND_MCP_README.md
+*.pre-chat-backup

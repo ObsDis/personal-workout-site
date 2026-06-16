@@ -1,0 +1,18 @@
+# Minimal Supabase config for deploying the BarbellMind MCP Edge Function.
+# Your actual project settings live in the Supabase dashboard; this file is for
+# `supabase link` + `supabase functions deploy`.
+project_id = "barbellmind"
+
+[api]
+enabled = true
+port = 54321
+
+[edge_runtime]
+enabled = true
+policy = "per_worker"
+deno_version = 2
+
+# The MCP server does its own OAuth bearer-token check, so the gateway JWT
+# check must be off (otherwise discovery + the 401 handshake never reach us).
+[functions.barbellmind-mcp]
+verify_jwt = false

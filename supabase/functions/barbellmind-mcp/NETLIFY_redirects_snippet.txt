@@ -1,0 +1,3 @@
+# Add this line to your web root _redirects file so the OAuth consent page
+# is served at /oauth/consent (the Authorization Path set in Supabase):
+/oauth/consent   /oauth-consent.html   200
