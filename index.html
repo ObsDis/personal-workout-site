@@ -4,207 +4,69 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>BarbellMind — AI training and nutrition coach</title>
-<meta name="description" content="BarbellMind plans your workouts, tracks your macros, and coaches you with AI. The first fitness app you can run from Claude or ChatGPT." />
-<meta property="og:title" content="BarbellMind" />
-<meta property="og:description" content="AI training and nutrition coach. Log workouts, track macros, get guidance. Drive it from Claude or ChatGPT." />
+<meta name="description" content="AI training and nutrition coach. Log workouts, track macros, get guidance. Run it from Claude or ChatGPT." />
+<meta property="og:title" content="BarbellMind — AI training and nutrition coach" />
+<meta property="og:description" content="AI training and nutrition coach. Log workouts, track macros, get guidance. Run it from Claude or ChatGPT." />
 <meta property="og:image" content="/AppIcon-1024.png" />
 <link rel="icon" href="/AppIcon-1024.png" />
-<style>
-  :root{
-    --bg:#0b0b0c; --surface:#141416; --surface-2:#1a1a1d; --card:#161618;
-    --border:#232327; --hairline:#2a2a2e;
-    --text:#fafafa; --text-2:#c4c4c8; --muted:#8b8b92; --faint:#6b6b72;
-    --green:#34d399; --green-2:#10b981; --green-glow:rgba(52,211,153,.18);
-    --pink:#fb7185; --amber:#fbbf24; --blue:#60a5fa; --purple:#a78bfa;
-    --r:22px; --r-sm:14px;
-  }
-  *{box-sizing:border-box;margin:0;padding:0}
-  html{scroll-behavior:smooth}
-  body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;line-height:1.5;-webkit-font-smoothing:antialiased;overflow-x:hidden}
-  a{color:inherit;text-decoration:none}
-  img{max-width:100%;display:block}
-  .wrap{max-width:1120px;margin:0 auto;padding:0 22px}
-  .eyebrow{font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--green)}
-  .btn{display:inline-flex;align-items:center;gap:8px;border-radius:999px;font-weight:700;font-size:15px;padding:13px 22px;cursor:pointer;border:1px solid transparent;transition:transform .15s,background .15s,border-color .15s}
-  .btn:active{transform:translateY(1px)}
-  .btn-primary{background:linear-gradient(135deg,var(--green),var(--green-2));color:#062019}
-  .btn-ghost{background:transparent;border-color:var(--border);color:var(--text)}
-  .btn-ghost:hover{border-color:var(--green);color:var(--green)}
-  .store{display:inline-flex;align-items:center;gap:10px;background:#000;border:1px solid var(--border);border-radius:14px;padding:10px 18px;color:#fff;font-weight:700}
-  .store small{display:block;font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.04em}
-  .store b{font-size:17px;font-weight:800;letter-spacing:-.01em}
-  .store.disabled{opacity:.85;cursor:default}
-
-  /* nav */
-  header{position:sticky;top:0;z-index:50;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);background:rgba(11,11,12,.72);border-bottom:1px solid var(--border)}
-  nav{display:flex;align-items:center;justify-content:space-between;height:64px}
-  .brand{display:flex;align-items:center;gap:11px;font-weight:800;font-size:18px;letter-spacing:-.01em}
-  .brand img{width:30px;height:30px;border-radius:8px}
-  .nav-links{display:flex;align-items:center;gap:26px}
-  .nav-links a{color:var(--text-2);font-size:14px;font-weight:600}
-  .nav-links a:hover{color:var(--text)}
-  .nav-cta{display:flex;align-items:center;gap:14px}
-  .login-link{font-size:14px;font-weight:700;color:var(--text-2)}
-  .login-link:hover{color:var(--green)}
-  @media(max-width:760px){.nav-links{display:none}}
-
-  /* hero */
-  .hero{position:relative;padding:78px 0 40px;text-align:center;overflow:hidden}
-  .hero::before{content:"";position:absolute;top:-180px;left:50%;transform:translateX(-50%);width:760px;height:520px;background:radial-gradient(closest-side,var(--green-glow),transparent);pointer-events:none}
-  .hero h1{position:relative;font-size:clamp(34px,6vw,62px);font-weight:850;letter-spacing:-.03em;line-height:1.04;margin:18px auto 0;max-width:880px}
-  .hero h1 .grad{background:linear-gradient(120deg,var(--green),#7dd3fc);-webkit-background-clip:text;background-clip:text;color:transparent}
-  .hero p.sub{position:relative;color:var(--text-2);font-size:clamp(16px,2.2vw,19px);max-width:600px;margin:20px auto 0}
-  .hero-cta{position:relative;display:flex;gap:14px;justify-content:center;align-items:center;flex-wrap:wrap;margin-top:30px}
-  .pill-soft{display:inline-flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:7px 15px;font-size:13px;font-weight:600;color:var(--text-2)}
-  .dot{width:7px;height:7px;border-radius:99px;background:var(--green);box-shadow:0 0 8px var(--green)}
-
-  /* phone */
-  .phone{position:relative;border-radius:42px;border:9px solid #1c1c20;background:#000;box-shadow:0 30px 80px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.04);overflow:hidden;width:266px}
-  .phone img{width:100%;display:block}
-  .hero-phone{margin:46px auto 0;position:relative}
-  .hero-phone::after{content:"";position:absolute;inset:auto -60px -60px -60px;height:120px;background:radial-gradient(closest-side,var(--green-glow),transparent);z-index:-1}
-
-  /* sections */
-  section.band{padding:64px 0}
-  .seclead{text-align:center;max-width:680px;margin:0 auto 44px}
-  .seclead h2{font-size:clamp(26px,4vw,40px);font-weight:840;letter-spacing:-.025em;margin-top:12px}
-  .seclead p{color:var(--text-2);margin-top:12px;font-size:16px}
-
-  /* MCP highlight */
-  .mcp{background:linear-gradient(160deg,rgba(52,211,153,.10),transparent 60%),var(--surface);border:1px solid var(--border);border-radius:28px;padding:44px;display:grid;grid-template-columns:1.1fr .9fr;gap:36px;align-items:center}
-  .mcp h2{font-size:clamp(24px,3.4vw,36px);font-weight:840;letter-spacing:-.025em;line-height:1.1}
-  .mcp p{color:var(--text-2);margin-top:14px;font-size:16px}
-  .chatcard{background:#0e0e10;border:1px solid var(--border);border-radius:18px;padding:16px;font-size:13.5px}
-  .msg{padding:10px 13px;border-radius:13px;margin-bottom:8px;max-width:90%}
-  .msg.u{background:var(--surface-2);margin-left:auto;color:var(--text)}
-  .msg.a{background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.25);color:#d7fbef}
-  .msg .who{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
-  @media(max-width:760px){.mcp{grid-template-columns:1fr;padding:28px}}
-
-  /* feature grid */
-  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
-  @media(max-width:880px){.grid{grid-template-columns:repeat(2,1fr)}}
-  @media(max-width:560px){.grid{grid-template-columns:1fr}}
-  .feat{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:24px}
-  .feat .ic{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:14px}
-  .feat h3{font-size:17px;font-weight:780;letter-spacing:-.01em}
-  .feat p{color:var(--text-2);font-size:14px;margin-top:7px}
-
-  /* gallery */
-  .gallery{display:flex;gap:18px;overflow-x:auto;padding:8px 22px 18px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
-  .gallery .phone{flex:0 0 auto;width:230px;scroll-snap-align:center}
-  .gallery::-webkit-scrollbar{height:0}
-
-  /* faq */
-  .faq{max-width:760px;margin:0 auto}
-  details{border:1px solid var(--border);border-radius:var(--r-sm);padding:0 18px;margin-bottom:10px;background:var(--card)}
-  summary{list-style:none;cursor:pointer;padding:17px 0;font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:12px}
-  summary::-webkit-details-marker{display:none}
-  summary .pl{color:var(--green);font-size:20px;transition:transform .2s}
-  details[open] summary .pl{transform:rotate(45deg)}
-  details p{color:var(--text-2);font-size:14.5px;padding:0 0 18px}
-
-  /* final cta */
-  .final{text-align:center;background:linear-gradient(180deg,transparent,rgba(52,211,153,.06));border-top:1px solid var(--border);padding:72px 0}
-  .final h2{font-size:clamp(28px,4.5vw,46px);font-weight:850;letter-spacing:-.03em}
-
-  /* footer */
-  footer{border-top:1px solid var(--border);padding:46px 0 60px;color:var(--muted);font-size:14px}
-  .foot-top{display:flex;justify-content:space-between;gap:30px;flex-wrap:wrap;margin-bottom:34px}
-  .foot-col h4{color:var(--text);font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px}
-  .foot-col a{display:block;color:var(--muted);margin-bottom:8px}
-  .foot-col a:hover{color:var(--green)}
-  .foot-bottom{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:22px}
-</style>
+<link rel="stylesheet" href="/site.css" />
 </head>
 <body>
+<div id="site-nav"></div>
 
-<header>
-  <nav class="wrap">
-    <a class="brand" href="/"><img src="/AppIcon-1024.png" alt="BarbellMind" /> BarbellMind</a>
-    <div class="nav-links">
-      <a href="#features">Features</a>
-      <a href="#coach">AI Coach</a>
-      <a href="#faq">FAQ</a>
-    </div>
-    <div class="nav-cta">
-      <a class="login-link" href="/app/">Log in</a>
-      <span class="store disabled"><span>&#63743;</span><span><small>Coming soon</small><b>App Store</b></span></span>
-    </div>
-  </nav>
-</header>
-
-<section class="hero">
+<section class="page-hero" style="padding-top:78px">
   <div class="wrap">
     <span class="pill-soft"><span class="dot"></span> AI native training and nutrition coach</span>
     <h1>Your workouts, macros, and coach. <span class="grad">One app that thinks.</span></h1>
-    <p class="sub">BarbellMind plans your training, tracks every set and macro, and coaches you on what to do next. Snap a meal, log a lift, ask a question. It is the first fitness app you can run straight from Claude or ChatGPT.</p>
-    <div class="hero-cta">
+    <p>BarbellMind plans your training, tracks every set and macro, and coaches you on what to do next. Snap a meal, log a lift, ask a question. It is the first fitness app you can run straight from Claude or ChatGPT.</p>
+    <div style="display:flex;gap:14px;justify-content:center;align-items:center;flex-wrap:wrap;margin-top:28px">
       <span class="store disabled"><span style="font-size:22px">&#63743;</span><span><small>Coming soon to the</small><b>App Store</b></span></span>
-      <a class="btn btn-ghost" href="#coach">See how it works</a>
+      <a class="btn btn-ghost" href="/ai-coach/">See how it works</a>
     </div>
-    <div class="hero-phone"><div class="phone"><img src="/screenshots-6.7/IMG_6231.png" alt="BarbellMind app" /></div></div>
+    <div style="margin:46px auto 0;display:flex;justify-content:center"><div class="phone"><img src="/screenshots-6.7/IMG_6231.png" alt="BarbellMind app" /></div></div>
   </div>
 </section>
 
-<section class="band" id="coach">
+<section class="band">
   <div class="wrap">
-    <div class="mcp">
+    <div class="feat" style="background:linear-gradient(160deg,rgba(52,211,153,.10),transparent 60%),var(--surface);border-radius:28px;padding:40px;display:grid;grid-template-columns:1.1fr .9fr;gap:32px;align-items:center">
       <div>
         <span class="eyebrow">The differentiator</span>
-        <h2>Run your training from Claude or ChatGPT.</h2>
-        <p>BarbellMind connects to AI assistants over MCP. Log meals and workouts, build plans, set macro targets, and pull your progress just by asking, in plain language. Your data stays yours, scoped to your account. Then open the app for the full visual experience.</p>
+        <h2 style="font-size:clamp(24px,3.4vw,34px);font-weight:840;letter-spacing:-.025em;margin-top:10px">Run your training from Claude or ChatGPT.</h2>
+        <p style="color:var(--text-2);margin-top:12px">Log meals and workouts, build plans, and pull progress just by asking, in plain language. Then open the app for the full visual experience. <a href="/ai-coach/" style="color:var(--green)">Learn how it works.</a></p>
       </div>
-      <div class="chatcard">
-        <div class="msg u"><div class="who">You</div>Log my lunch: 8oz chicken, rice, broccoli. And how is my protein today?</div>
-        <div class="msg a"><div class="who">BarbellMind</div>Logged, +540 kcal. You are at 184g of 300g protein with 1,250 kcal left. Want me to suggest a high protein dinner?</div>
-        <div class="msg u"><div class="who">You</div>Add a second leg day on Sunday with squats and RDLs.</div>
-        <div class="msg a"><div class="who">BarbellMind</div>Done. Sunday is now Legs with Back Squat and Romanian Deadlift added.</div>
+      <div style="background:#0e0e10;border:1px solid var(--border);border-radius:18px;padding:16px;font-size:13.5px">
+        <div style="background:var(--surface-2);padding:10px 13px;border-radius:13px;margin-bottom:8px">Log my lunch: 8oz chicken, rice, broccoli. How is my protein today?</div>
+        <div style="background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.25);color:#d7fbef;padding:10px 13px;border-radius:13px">Logged, +540 kcal. You are at 184g of 300g protein with 1,250 kcal left.</div>
       </div>
     </div>
   </div>
 </section>
 
-<section class="band" id="features">
+<section class="band">
   <div class="wrap">
-    <div class="seclead">
-      <span class="eyebrow">All in one app</span>
-      <h2>Everything you need to train and eat with intent</h2>
-      <p>Built for lifters who want their data to do the work, not the other way around.</p>
-    </div>
+    <div class="seclead"><span class="eyebrow">All in one app</span><h2>Everything you need to train and eat with intent</h2></div>
     <div class="grid">
-      <div class="feat"><div class="ic" style="background:rgba(52,211,153,.14);color:var(--green)">&#9889;</div><h3>AI coach by text and voice</h3><p>Ask for programming advice, form cues, or plan changes. Hands free voice mode works mid set. It can log food, sets, and weight for you.</p></div>
-      <div class="feat"><div class="ic" style="background:rgba(251,113,133,.14);color:var(--pink)">&#128247;</div><h3>Photo and barcode macros</h3><p>Snap a plate for instant calories and macros, scan a barcode, search a database, or enter it by hand. Saved foods speed up repeats.</p></div>
-      <div class="feat"><div class="ic" style="background:rgba(96,165,250,.14);color:var(--blue)">&#127947;</div><h3>Per day workout plans</h3><p>Build any split with a different routine for every day. Log sets and reps with smart presets, track PRs and last session heaviest per lift.</p></div>
-      <div class="feat"><div class="ic" style="background:rgba(251,191,36,.14);color:var(--amber)">&#127859;</div><h3>Meal plans and shopping lists</h3><p>Build multi day meal plans, get a shopping list of everything to buy, then log a meal in one tap when you eat it.</p></div>
-      <div class="feat"><div class="ic" style="background:rgba(167,139,250,.14);color:var(--purple)">&#10084;</div><h3>Apple Health sync</h3><p>Steps, move, exercise, sleep, heart rate, and body weight on your dashboard, in sync with the Apple Fitness rings.</p></div>
-      <div class="feat"><div class="ic" style="background:rgba(52,211,153,.14);color:var(--green)">&#128200;</div><h3>Progress that adds up</h3><p>Body weight, measurements, and progress photos over time, plus volume and PR history so you can see the trend.</p></div>
+      <div class="feat"><div class="ic" style="background:rgba(52,211,153,.14);color:var(--green)">&#9889;</div><h3>AI coach by text and voice</h3><p>Programming advice, form cues, and plan changes. It can log food, sets, and weight for you, hands free mid set.</p></div>
+      <div class="feat"><div class="ic" style="background:rgba(251,113,133,.14);color:var(--pink)">&#128247;</div><h3>Photo and barcode macros</h3><p>Snap a plate for instant macros, scan a barcode, search, or enter by hand. Saved foods speed up repeats.</p></div>
+      <div class="feat"><div class="ic" style="background:rgba(96,165,250,.14);color:var(--blue)">&#127947;</div><h3>Per day workout plans</h3><p>Build any split with a different routine per day. Track PRs and last session heaviest per lift.</p></div>
+      <div class="feat"><div class="ic" style="background:rgba(251,191,36,.14);color:var(--amber)">&#127859;</div><h3>Meal plans and shopping lists</h3><p>Build multi day meal plans, get a shopping list, then log a meal in one tap when you eat it.</p></div>
+      <div class="feat"><div class="ic" style="background:rgba(167,139,250,.14);color:var(--purple)">&#10084;</div><h3>Apple Health sync</h3><p>Steps, move, exercise, sleep, heart rate, and body weight, in sync with the Apple Fitness rings.</p></div>
+      <div class="feat"><div class="ic" style="background:rgba(52,211,153,.14);color:var(--green)">&#128200;</div><h3>Progress that adds up</h3><p>Body weight, measurements, progress photos, and volume and PR history so you can see the trend.</p></div>
     </div>
+    <div style="text-align:center;margin-top:30px"><a class="btn btn-ghost" href="/features/">Explore all features</a></div>
   </div>
 </section>
 
 <section class="band">
   <div class="wrap"><div class="seclead"><span class="eyebrow">A look inside</span><h2>Designed to get out of your way</h2></div></div>
   <div class="gallery">
-    <div class="phone"><img src="/screenshots-6.7/IMG_6232.png" alt="BarbellMind screen" /></div>
-    <div class="phone"><img src="/screenshots-6.7/IMG_6233.png" alt="BarbellMind screen" /></div>
-    <div class="phone"><img src="/screenshots-6.7/IMG_6234.png" alt="BarbellMind screen" /></div>
-    <div class="phone"><img src="/screenshots-6.7/IMG_6235.png" alt="BarbellMind screen" /></div>
-    <div class="phone"><img src="/screenshots-6.7/IMG_6236.png" alt="BarbellMind screen" /></div>
-    <div class="phone"><img src="/screenshots-6.7/IMG_6239.png" alt="BarbellMind screen" /></div>
-  </div>
-</section>
-
-<section class="band" id="faq">
-  <div class="wrap">
-    <div class="seclead"><span class="eyebrow">Questions</span><h2>Good to know</h2></div>
-    <div class="faq">
-      <details><summary>What is BarbellMind? <span class="pl">+</span></summary><p>An AI training and nutrition app. It plans your workouts, tracks your macros and lifts, syncs Apple Health, and gives guidance based on your own data.</p></details>
-      <details><summary>What does "run it from Claude or ChatGPT" mean? <span class="pl">+</span></summary><p>BarbellMind exposes a secure connector so an AI assistant can read and update your data with your permission. You can log a meal or a workout, build a plan, or check progress by just asking, then open the app for the full view.</p></details>
-      <details><summary>Is it free? <span class="pl">+</span></summary><p>BarbellMind is a subscription with a free trial. Plans are shown clearly before you sign up.</p></details>
-      <details><summary>Do I need the app, or can I use the website? <span class="pl">+</span></summary><p>The full experience lives in the iOS app. The website is for getting started and managing your account.</p></details>
-      <details><summary>Is there an Android version? <span class="pl">+</span></summary><p>iOS first. Android is on the roadmap.</p></details>
-    </div>
+    <div class="phone"><img src="/screenshots-6.7/IMG_6232.png" alt="screen" /></div>
+    <div class="phone"><img src="/screenshots-6.7/IMG_6233.png" alt="screen" /></div>
+    <div class="phone"><img src="/screenshots-6.7/IMG_6234.png" alt="screen" /></div>
+    <div class="phone"><img src="/screenshots-6.7/IMG_6235.png" alt="screen" /></div>
+    <div class="phone"><img src="/screenshots-6.7/IMG_6236.png" alt="screen" /></div>
+    <div class="phone"><img src="/screenshots-6.7/IMG_6239.png" alt="screen" /></div>
   </div>
 </section>
 
@@ -213,41 +75,11 @@
     <span class="eyebrow">Get started</span>
     <h2>Train smarter. Eat with intent.</h2>
     <p style="color:var(--text-2);margin:14px auto 26px;max-width:520px">BarbellMind is coming to the App Store. Be among the first to train with it.</p>
-    <div style="display:flex;justify-content:center;gap:14px;flex-wrap:wrap">
-      <span class="store disabled"><span style="font-size:22px">&#63743;</span><span><small>Coming soon to the</small><b>App Store</b></span></span>
-    </div>
+    <span class="store disabled"><span style="font-size:22px">&#63743;</span><span><small>Coming soon to the</small><b>App Store</b></span></span>
   </div>
 </section>
 
-<footer>
-  <div class="wrap">
-    <div class="foot-top">
-      <div style="max-width:300px">
-        <a class="brand" href="/"><img src="/AppIcon-1024.png" alt="BarbellMind" style="width:28px;height:28px;border-radius:7px" /> BarbellMind</a>
-        <p style="margin-top:12px;color:var(--muted);font-size:13.5px">AI training and nutrition coach. Coming soon to the App Store.</p>
-      </div>
-      <div class="foot-col">
-        <h4>Product</h4>
-        <a href="#features">Features</a>
-        <a href="#coach">AI Coach</a>
-        <a href="#faq">FAQ</a>
-        <a href="/app/">Log in</a>
-      </div>
-      <div class="foot-col">
-        <h4>Legal</h4>
-        <a href="/PRIVACY_POLICY.md">Privacy Policy</a>
-      </div>
-      <div class="foot-col">
-        <h4>Company</h4>
-        <a href="mailto:lev@obsidiandist.com">Contact</a>
-      </div>
-    </div>
-    <div class="foot-bottom">
-      <span>&copy; 2026 Obsidian Distribution LLC. All rights reserved.</span>
-      <span>BarbellMind</span>
-    </div>
-  </div>
-</footer>
-
+<div id="site-footer"></div>
+<script src="/site.js"></script>
 </body>
 </html>
