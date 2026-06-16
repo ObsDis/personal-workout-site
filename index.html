@@ -10,6 +10,66 @@
 <meta property="og:image" content="/AppIcon-1024.png" />
 <link rel="icon" href="/AppIcon-1024.png" />
 <link rel="stylesheet" href="/site.css" />
+<style id="home-css">
+.bm-showcase{position:relative;height:230vh}
+.bm-stage{position:sticky;top:0;height:100vh;display:flex;align-items:center;justify-content:center}
+.bm-phone{position:relative;width:300px;height:624px;border-radius:46px;border:10px solid #1b1b1f;background:#000;box-shadow:0 40px 90px rgba(0,0,0,.65),0 0 0 1px rgba(255,255,255,.04);flex:0 0 auto}
+.bm-phone::after{content:"";position:absolute;inset:auto -70px -70px -70px;height:140px;background:radial-gradient(closest-side,var(--green-glow),transparent);z-index:-1}
+.bm-screen{position:absolute;inset:0;border-radius:36px;overflow:hidden;background:#0a0a0b}
+.bm-scroll{position:absolute;top:0;left:0;width:100%;padding:22px 15px 40px;will-change:transform}
+@media(max-width:520px){.bm-phone{transform:scale(.82)}}
+/* Today screen */
+.t-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px}
+.t-eyebrow{font-size:9px;font-weight:800;letter-spacing:.14em;color:#8b8b92}
+.t-hey{font-size:26px;font-weight:850;letter-spacing:-.02em;margin-top:3px}
+.t-hr{display:flex;align-items:center;gap:8px}
+.t-streak{display:inline-flex;align-items:center;gap:3px;background:rgba(245,158,11,.14);color:#f59e0b;font-size:11px;font-weight:800;padding:4px 9px;border-radius:99px}
+.t-av{width:30px;height:30px;border-radius:99px;background:linear-gradient(135deg,#34d399,#22d3ee);color:#06231b;font-weight:850;font-size:14px;display:flex;align-items:center;justify-content:center}
+.t-card{background:#161618;border:1px solid #232327;border-radius:18px;padding:15px;margin-bottom:14px}
+.t-push{background:linear-gradient(140deg,rgba(244,63,94,.12),rgba(28,28,30,.4) 60%),#161618;border-color:rgba(244,63,94,.28)}
+.t-chip{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;letter-spacing:.05em;color:#fb7185;background:rgba(244,63,94,.14);padding:4px 9px;border-radius:99px}
+.t-chip .d{width:5px;height:5px;border-radius:99px;background:#fb7185}
+.t-ptitle{font-size:22px;font-weight:800;margin:9px 0 6px}
+.t-meta{display:flex;gap:14px;color:#8b8b92;font-size:12px;font-weight:600}
+.t-start{margin-top:13px;height:42px;border-radius:13px;border:1px solid rgba(244,63,94,.4);background:linear-gradient(135deg,rgba(244,63,94,.18),transparent);color:#fda4af;display:flex;align-items:center;justify-content:center;gap:7px;font-weight:800;font-size:14px}
+.t-sec{font-size:18px;font-weight:800;letter-spacing:-.01em;margin:18px 2px 11px}
+.t-secrow{display:flex;align-items:baseline;justify-content:space-between;margin:18px 2px 11px}
+.t-secrow .sub{font-size:11px;color:#8b8b92;font-weight:600}
+.t-mac{display:flex;align-items:center;gap:14px}
+.t-ring{width:108px;height:108px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;justify-content:center}
+.t-ring .in{width:84px;height:84px;border-radius:50%;background:#161618;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.t-ring .v{font-size:24px;font-weight:850;letter-spacing:-.02em;line-height:1}
+.t-ring .l{font-size:9px;color:#8b8b92;font-weight:600;margin-top:2px}
+.t-barwrap{flex:1;min-width:0;display:flex;flex-direction:column;gap:11px}
+.t-bar .top{display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:5px}
+.t-bar .lab{color:#c4c4c8;font-weight:700}
+.t-bar .num{font-weight:700}.t-bar .num .g{color:#6b6b72}
+.t-track{height:6px;border-radius:99px;background:#26262b;overflow:hidden}
+.t-fill{height:100%;border-radius:99px}
+.t-dotrow{display:flex;align-items:center;gap:9px}
+.t-dot{width:24px;height:24px;border-radius:50%;flex:0 0 auto;position:relative;display:flex;align-items:center;justify-content:center}
+.t-week{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.t-day{display:flex;flex-direction:column;align-items:center;gap:5px;padding:8px 2px;background:#161618;border:1px solid #232327;border-radius:12px}
+.t-day .dow{font-size:8px;font-weight:800;letter-spacing:.06em;color:#8b8b92}
+.t-day .mk{width:22px;height:22px;border-radius:99px;display:flex;align-items:center;justify-content:center;font-size:11px}
+.t-day .nm{font-size:7.5px;font-weight:800;letter-spacing:.03em}
+.t-day.sel{border-color:#34d399;box-shadow:0 0 0 3px rgba(52,211,153,.08)}
+.t-grid2{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.t-mini{background:#161618;border:1px solid #232327;border-radius:16px;padding:13px}
+.t-mini .h{display:flex;align-items:center;gap:7px;color:#8b8b92;font-size:11px;font-weight:700;margin-bottom:8px}
+.t-mini .ic{width:24px;height:24px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px}
+.t-mini .big{font-size:24px;font-weight:850;letter-spacing:-.02em}.t-mini .big small{font-size:11px;color:#8b8b92;font-weight:600}
+.t-mini .sub{font-size:10px;color:#8b8b92;font-weight:600;margin-top:5px}
+.t-hrings{display:flex;justify-content:space-around;gap:8px}
+.t-hr1{display:flex;flex-direction:column;align-items:center;gap:6px}
+.t-hr1 .ring{width:74px;height:74px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.t-hr1 .ring .in{width:58px;height:58px;border-radius:50%;background:#161618;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.t-hr1 .ring .v{font-size:16px;font-weight:850;line-height:1}
+.t-hr1 .ring .u{font-size:8px;color:#8b8b92}
+.t-hr1 .nm{font-size:11px;font-weight:700;color:#c4c4c8}
+.t-hr1 .of{font-size:9px;color:#6b6b72;font-weight:600}
+.t-line{height:30px;margin-top:8px}
+</style>
 </head>
 <body>
 <div id="site-nav"></div>
@@ -23,7 +83,43 @@
       <span class="store disabled"><span style="font-size:22px">&#63743;</span><span><small>Coming soon to the</small><b>App Store</b></span></span>
       <a class="btn btn-ghost" href="/ai-coach/">See how it works</a>
     </div>
-    <div style="margin:46px auto 0;display:flex;justify-content:center"><div class="phone"><img src="/screenshots-6.7/IMG_6231.png" alt="BarbellMind app" /></div></div>
+  </div>
+</section>
+<section class="bm-showcase">
+  <div class="bm-stage">
+    <div class="bm-phone"><div class="bm-screen"><div class="bm-scroll" id="bmScroll"><div class="t-head"><div><div class="t-eyebrow">TUESDAY, JUN 16</div><div class="t-hey">Hey, Jacob</div></div><div class="t-hr"><span class="t-streak">&#9889; 2</span><span class="t-av">J</span></div></div>
+
+<div class="t-card t-push"><span class="t-chip"><span class="d"></span> PUSH DAY</span><div class="t-ptitle">Push</div><div class="t-meta"><span>&#9762; 7 exercises</span><span>&#9201; ~56 min</span></div><div class="t-start">&#9654; Start workout</div></div>
+
+<div class="t-sec">Today's macros</div>
+<div class="t-card"><div class="t-mac">
+  <div class="t-ring" style="background:conic-gradient(#f59e0b 92deg,#2a2a2e 0)"><div class="in"><div class="v">1884</div><div class="l">kcal left</div></div></div>
+  <div class="t-barwrap"><div class="t-bar"><div class="top"><span class="lab">Protein</span><span class="num">67 <span class="g">/ 300g</span></span></div><div class="t-track"><div class="t-fill" style="width:22%;background:#fb7185"></div></div></div><div class="t-bar"><div class="top"><span class="lab">Carbs</span><span class="num">33 <span class="g">/ 200g</span></span></div><div class="t-track"><div class="t-fill" style="width:16%;background:#60a5fa"></div></div></div><div class="t-bar"><div class="top"><span class="lab">Fat</span><span class="num">22 <span class="g">/ 120g</span></span></div><div class="t-track"><div class="t-fill" style="width:18%;background:#a78bfa"></div></div></div></div>
+</div></div>
+
+<div class="t-secrow"><span class="t-sec" style="margin:0">This week</span><span class="sub">2 of 6 sessions</span></div>
+<div class="t-week"><div class="t-day"><span class="dow">M</span><span class="mk" style="background:#60a5fa;color:#06231b">&#10003;</span><span class="nm" style="color:#60a5fa">PULL</span></div><div class="t-day sel"><span class="dow">T</span><span class="mk" style="background:#fb7185;color:#06231b">&#10003;</span><span class="nm" style="color:#fb7185">PUSH</span></div><div class="t-day"><span class="dow">W</span><span class="mk" style="border:2px solid #2a2a2e"></span><span class="nm" style="color:#6b6b72">LEGS</span></div><div class="t-day"><span class="dow">T</span><span class="mk" style="border:2px solid #2a2a2e"></span><span class="nm" style="color:#6b6b72">PULL</span></div><div class="t-day"><span class="dow">F</span><span class="mk" style="border:2px solid #2a2a2e"></span><span class="nm" style="color:#6b6b72">PUSH</span></div><div class="t-day"><span class="dow">S</span><span class="mk" style="border:2px solid #3a3a40"></span><span class="nm" style="color:#6b6b72">REST</span></div><div class="t-day"><span class="dow">S</span><span class="mk" style="border:2px solid #2a2a2e"></span><span class="nm" style="color:#6b6b72">LEGS</span></div></div>
+
+<div class="t-sec">At a glance</div>
+<div class="t-grid2">
+  <div class="t-mini"><div class="h"><span class="ic" style="background:rgba(52,211,153,.14);color:#34d399">&#9633;</span> Weight</div><div class="big">308.2 <small>lbs</small></div><svg class="t-line" viewBox="0 0 100 30" preserveAspectRatio="none" style="width:100%"><polyline points="0,10 20,13 40,16 60,15 75,22 88,17 100,12" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><div class="sub" style="color:#34d399">-1.1 lbs &middot; 7d</div></div>
+  <div class="t-mini"><div class="h"><span class="ic" style="background:rgba(245,158,11,.14);color:#f59e0b">&#9889;</span> Volume &middot; wk</div><div class="big">82.6k <small>lbs</small></div><div style="display:flex;align-items:flex-end;gap:4px;height:34px;margin-top:8px"><div style="flex:1;background:#a16207;height:32%;border-radius:2px"></div><div style="flex:1;background:#f59e0b;height:90%;border-radius:2px"></div><div style="flex:1;background:#3a3a40;height:8%;border-radius:2px"></div><div style="flex:1;background:#3a3a40;height:8%;border-radius:2px"></div><div style="flex:1;background:#3a3a40;height:8%;border-radius:2px"></div><div style="flex:1;background:#3a3a40;height:8%;border-radius:2px"></div><div style="flex:1;background:#3a3a40;height:8%;border-radius:2px"></div></div></div>
+  <div class="t-mini"><div class="h"><span class="ic" style="background:rgba(167,139,250,.14);color:#a78bfa">&#9819;</span> PRs &middot; wk</div><div class="big">5 <small>new</small></div><div class="sub">Overhead Tricep Ext &middot; Lateral Raises</div></div>
+  <div class="t-mini"><div class="h"><span class="ic" style="background:rgba(96,165,250,.14);color:#60a5fa">&#9201;</span> Time &middot; wk</div><div class="big">1h 52m</div><div class="sub">avg 56 min / session</div></div>
+</div>
+
+<div class="t-secrow"><span class="t-sec" style="margin:0">Health</span><span class="sub" style="color:#34d399">&#8635; Sync</span></div>
+<div class="t-card"><div class="t-hrings"><div class="t-hr1"><div class="ring" style="background:conic-gradient(#34d399 268deg,#26262b 0)"><div class="in"><div class="v">7,453</div><div class="u"></div></div></div><div class="nm">Steps</div><div class="of">of 10,000</div></div><div class="t-hr1"><div class="ring" style="background:conic-gradient(#fb7185 300deg,#26262b 0)"><div class="in"><div class="v">926</div><div class="u">kcal</div></div></div><div class="nm">Move</div><div class="of">of 1,110</div></div><div class="t-hr1"><div class="ring" style="background:conic-gradient(#60a5fa 271deg,#26262b 0)"><div class="in"><div class="v">49</div><div class="u">min</div></div></div><div class="nm">Exercise</div><div class="of">of 65</div></div></div></div>
+<div class="t-grid2">
+  <div class="t-mini"><div class="h" style="justify-content:space-between"><span>Distance</span><span style="width:7px;height:7px;border-radius:99px;background:#a78bfa"></span></div><div class="big">3.68 <small>mi</small></div><svg class="t-line" viewBox="0 0 100 30" preserveAspectRatio="none" style="width:100%"><polyline points="0,12 25,22 50,24 75,22 100,6" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+  <div class="t-mini"><div class="h" style="justify-content:space-between"><span>Flights</span><span style="width:7px;height:7px;border-radius:99px;background:#f59e0b"></span></div><div class="big">9</div><svg class="t-line" viewBox="0 0 100 30" preserveAspectRatio="none" style="width:100%"><polyline points="0,16 20,10 40,14 55,22 70,12 85,8 100,12" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+  <div class="t-mini"><div class="h" style="justify-content:space-between"><span>Resting HR</span><span style="width:7px;height:7px;border-radius:99px;background:#fb7185"></span></div><div class="big">64 <small>bpm</small></div><svg class="t-line" viewBox="0 0 100 30" preserveAspectRatio="none" style="width:100%"><polyline points="0,18 25,14 50,16 75,12 100,24" fill="none" stroke="#fb7185" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+  <div class="t-mini"><div class="h" style="justify-content:space-between"><span>Blood O2</span><span style="width:7px;height:7px;border-radius:99px;background:#22d3ee"></span></div><div class="big">98 <small>%</small></div><svg class="t-line" viewBox="0 0 100 30" preserveAspectRatio="none" style="width:100%"><polyline points="0,16 25,22 50,18 75,16 100,8" fill="none" stroke="#22d3ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+</div>
+
+<div class="t-secrow"><span class="t-sec" style="margin:0">Workouts</span><span class="sub">Apple Watch</span></div>
+<div class="t-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:11px"><span style="font-weight:800;font-size:15px"><span style="color:#fb7185">&#9679;</span> Walking</span><span class="sub" style="color:#8b8b92;font-size:11px">12:59 PM</span></div>
+<div style="display:flex;justify-content:space-between"><div><div style="font-size:10px;color:#8b8b92;font-weight:700">Time</div><div style="font-size:18px;font-weight:850">30 <small style="font-size:10px;color:#8b8b92">min</small></div></div><div><div style="font-size:10px;color:#8b8b92;font-weight:700">Calories</div><div style="font-size:18px;font-weight:850">360 <small style="font-size:10px;color:#8b8b92">kcal</small></div></div><div><div style="font-size:10px;color:#8b8b92;font-weight:700">Distance</div><div style="font-size:18px;font-weight:850">1.39 <small style="font-size:10px;color:#8b8b92">mi</small></div></div></div></div></div></div></div>
   </div>
 </section>
 
@@ -81,5 +177,21 @@
 
 <div id="site-footer"></div>
 <script src="/site.js"></script>
+<script>
+(function(){
+  var sc=document.getElementById('bmScroll'); if(!sc) return;
+  var show=document.querySelector('.bm-showcase'); var screen=sc.parentElement;
+  function upd(){
+    var rect=show.getBoundingClientRect();
+    var total=show.offsetHeight-window.innerHeight; if(total<=0) return;
+    var p=Math.min(1,Math.max(0,(-rect.top)/total));
+    var max=Math.max(0, sc.scrollHeight-screen.clientHeight);
+    sc.style.transform='translateY('+(-p*max).toFixed(1)+'px)';
+  }
+  window.addEventListener('scroll',upd,{passive:true});
+  window.addEventListener('resize',upd);
+  upd();
+})();
+</script>
 </body>
 </html>
