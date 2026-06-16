@@ -1,7 +1,5 @@
 (function(){
   var FN = "https://ssgwydumjovvjjusayeq.supabase.co/functions/v1";
-  var ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNzZ3d5ZHVtam92dmpqdXNheWVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMzQ0NTAsImV4cCI6MjA5MjYxMDQ1MH0.3we37B59WdJ6nPz8D7JPLj--ZswyEjhAZOplISMJMeY";
-  var HDRS = {"Content-Type":"application/json","apikey":ANON,"Authorization":"Bearer "+ANON};
   var NAV =
     '<header><nav class="wrap">'
     + '<a class="brand" href="/"><img src="/AppIcon-1024.png" alt="BarbellMind"/> BarbellMind</a>'
@@ -51,7 +49,7 @@
       var data={email:form.email.value.trim(),subject:form.subject.value.trim(),message:form.message.value.trim()};
       if(!data.email||!data.message){ msg.className="formmsg err"; msg.textContent="Please add your email and a message."; return; }
       msg.className="formmsg"; msg.textContent="Sending...";
-      fetch(FN+"/contact",{method:"POST",headers:HDRS,body:JSON.stringify(data)})
+      fetch(FN+"/contact",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)})
         .then(function(r){return r.json().catch(function(){return {}}).then(function(j){return {ok:r.ok,j:j}})})
         .then(function(res){ if(res.ok){ form.reset(); msg.className="formmsg ok"; msg.textContent="Thanks. Your message was sent. We will get back to you."; } else { msg.className="formmsg err"; msg.textContent=(res.j&&res.j.error)||"Something went wrong. Email lev@obsidiandist.com instead."; } })
         .catch(function(){ msg.className="formmsg err"; msg.textContent="Network error. Email lev@obsidiandist.com instead."; });
@@ -66,7 +64,7 @@
       var email=form.email.value.trim();
       if(!email){ msg.className="formmsg err"; msg.textContent="Enter your email."; return; }
       msg.className="formmsg"; msg.textContent="Checking..."; box.classList.remove("show");
-      fetch(FN+"/sub-status",{method:"POST",headers:HDRS,body:JSON.stringify({email:email})})
+      fetch(FN+"/sub-status",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:email})})
         .then(function(r){return r.json().catch(function(){return {}}).then(function(j){return {ok:r.ok,j:j}})})
         .then(function(res){
           msg.textContent="";
