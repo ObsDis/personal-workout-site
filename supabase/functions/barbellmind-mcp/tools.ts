@@ -598,6 +598,74 @@ export function buildServer(db: SupabaseClient, user: { id: string; email?: stri
     },
   )
 
+  // ---------- ACCOUNT SETUP (mirrors the in-app onboarding) ----------
+  server.registerTool(
+    'start_account_setup',
+    { title: 'Start account setup', description: 'Begin guided account setup for a new BarbellMind user. Returns the exact questionnaire the in-app setup asks, the valid options, and the split day-templates, plus what is already set on the account. When a user asks to set up their BarbellMind account, call this FIRST, then ask them every question it returns, one at a time and in order (basic stats, goal, minutes per workout day, training split, the 7-day layout, and the exercises for each training day). Once you have the answers, call update_profile, then create_plan. Macro targets are optional and are not part of the app setup, but you may offer to set them afterward with set_macro_targets.', inputSchema: {} },
+    async () => {
+      const { data: profile } = await db.from('profiles').select('username,age,height_ft,height_in,weight_lbs,goal,daily_minutes,kcal_target,protein_target_g,carbs_target_g,fat_target_g').eq('id', uid).maybeSingle()
+      const { data: plan } = await db.from('plans').select('id,split_type,name').eq('is_active', true).order('created_at', { ascending: false }).limit(1).maybeSingle()
+      return ok({
+        instructions: 'Ask the user each question below one at a time, in order, mirroring the BarbellMind app setup. Do not skip any. After collecting the answers, call update_profile (age, height_ft, height_in, weight_lbs, goal, daily_minutes), then call create_plan (split_type plus the 7-day layout with each training day\'s exercises). If a field is already set under already_set, you can confirm it rather than re-ask. Macro targets are optional; after the plan is saved you may offer to set them with set_macro_targets.',
+        already_set: { profile: profile || null, active_plan: plan || null },
+        questions: [
+          { step: 1, field: 'basics', ask: ['Age (years)', 'Height (feet and inches)', 'Body weight (lbs)'] },
+          { step: 2, field: 'goal', ask: 'What is your main goal right now?', options: [
+            { value: 'build_muscle', label: 'Build muscle' },
+            { value: 'lose_weight', label: 'Lose weight' },
+            { value: 'gain_strength', label: 'Gain strength' },
+            { value: 'maintain', label: 'Maintain' },
+            { value: 'general_fitness', label: 'General fitness' },
+          ] },
+          { step: 3, field: 'daily_minutes', ask: 'About how many minutes do you train on a workout day?', presets: [30, 45, 60, 75, 90], custom_range: '15-240' },
+          { step: 4, field: 'split_type', ask: 'Which training split do you want? (template is Sunday-first)', options: [
+            { value: 'ppl', label: 'Push / Pull / Legs', template: ['rest', 'push', 'pull', 'legs', 'push', 'pull', 'legs'] },
+            { value: 'upper_lower', label: 'Upper / Lower', template: ['rest', 'upper', 'lower', 'rest', 'upper', 'lower', 'rest'] },
+            { value: 'full_body', label: 'Full Body', template: ['rest', 'full', 'rest', 'full', 'rest', 'full', 'rest'] },
+            { value: 'custom', label: 'Custom / Build your own', template: ['rest', 'rest', 'rest', 'rest', 'rest', 'rest', 'rest'] },
+          ] },
+          { step: 5, field: 'days', ask: 'Confirm or adjust each day of the week, Sunday first. Pick a slot_type for each day.', slot_types: ['push', 'pull', 'legs', 'upper', 'lower', 'full', 'cardio', 'rest', 'custom'], note: 'Cardio days can include cardio_type and cardio_duration_min; custom days can have a custom_name.' },
+          { step: 6, field: 'exercises', ask: 'For each training day, list the exercises with target sets and target reps (e.g. 8-12). Offer the standard template for the chosen split if they want sensible defaults.' },
+        ],
+      })
+    },
+  )
+
+  server.registerTool(
+    'update_profile',
+    { title: 'Update profile', description: 'Create or update the user profile. Upserts, so it also works for a brand-new account that has no profile row yet. Fields mirror the app setup: age, height_ft, height_in, weight_lbs, goal, daily_minutes (typical minutes per workout day), and optional username. goal must be one of build_muscle, lose_weight, gain_strength, maintain, general_fitness. Only provided fields change.', inputSchema: { age: z.number().int().min(10).max(100).optional(), height_ft: z.number().int().min(3).max(8).optional(), height_in: z.number().int().min(0).max(11).optional(), weight_lbs: z.number().min(50).max(700).optional(), goal: z.enum(['build_muscle', 'lose_weight', 'gain_strength', 'maintain', 'general_fitness']).optional(), daily_minutes: z.number().int().min(10).max(240).optional(), username: z.string().optional() } },
+    async (a) => {
+      const patch: any = { id: uid, updated_at: new Date().toISOString() }
+      for (const k of ['age', 'height_ft', 'height_in', 'weight_lbs', 'goal', 'daily_minutes', 'username'] as const) if (a[k] != null) patch[k] = a[k]
+      if (Object.keys(patch).length <= 2) return fail('Provide at least one field to set (age, height_ft, height_in, weight_lbs, goal, daily_minutes, or username).')
+      const { data, error } = await db.from('profiles').upsert(patch).select('username,age,height_ft,height_in,weight_lbs,goal,daily_minutes,kcal_target,protein_target_g,carbs_target_g,fat_target_g').single()
+      return error ? fail(error.message) : ok({ updated: true, profile: data })
+    },
+  )
+
+  server.registerTool(
+    'create_plan',
+    { title: 'Create workout plan', description: 'Create a new active workout plan from scratch, deactivating any current active plan. Mirrors the app setup. split_type is ppl, upper_lower, full_body, or custom. Provide days as 7 entries starting Sunday (index 0 = Sunday .. 6 = Saturday); each day has a slot_type (push, pull, legs, upper, lower, full, cardio, rest, custom) and may include custom_name, cardio_type, cardio_duration_min, and its own exercises list (each exercise has exercise_name and optional target_sets and target_reps). Use the templates from start_account_setup as the starting point.', inputSchema: { split_type: z.enum(['ppl', 'upper_lower', 'full_body', 'custom']), name: z.string().optional(), days: z.array(z.object({ slot_type: z.enum(['push', 'pull', 'legs', 'upper', 'lower', 'full', 'cardio', 'rest', 'custom']), custom_name: z.string().optional(), cardio_type: z.string().optional(), cardio_duration_min: z.number().int().optional(), exercises: z.array(z.object({ exercise_name: z.string(), target_sets: z.number().int().optional(), target_reps: z.string().optional() })).optional() })) } },
+    async (a) => {
+      if (!a.days || !a.days.length) return fail('Provide the days array (ideally 7 entries, Sunday first).')
+      await db.from('plans').update({ is_active: false }).eq('user_id', uid).eq('is_active', true)
+      const { data: plan, error } = await db.from('plans').insert({ user_id: uid, split_type: a.split_type, name: a.name || 'My Plan', is_active: true }).select().single()
+      if (error) return fail(error.message)
+      const dayRows = a.days.map((d, i) => ({ plan_id: plan.id, day_of_week: i, slot_type: d.slot_type, slot_key: (d.slot_type && d.slot_type !== 'rest') ? (d.slot_type + '-' + i) : null, custom_name: d.custom_name || null, cardio_type: d.cardio_type || null, cardio_duration_min: d.cardio_duration_min || null }))
+      const { error: eD } = await db.from('plan_days').insert(dayRows)
+      if (eD) return fail('Plan created but saving days failed: ' + eD.message)
+      const exRows: any[] = []
+      a.days.forEach((d, i) => {
+        if (!d.slot_type || d.slot_type === 'rest' || d.slot_type === 'cardio') return
+        const key = d.slot_type + '-' + i
+        ;(d.exercises || []).filter((x) => x.exercise_name && x.exercise_name.trim()).forEach((x, j) => exRows.push({ plan_id: plan.id, slot_type: d.slot_type, slot_key: key, exercise_name: x.exercise_name.trim(), target_sets: x.target_sets ?? 3, target_reps: x.target_reps ?? '8-12', order_idx: j }))
+      })
+      if (exRows.length) { const { error: eE } = await db.from('plan_exercises').insert(exRows); if (eE) return fail('Plan and days saved but exercises failed: ' + eE.message) }
+      return ok({ created: true, plan_id: plan.id, days: dayRows.length, exercises: exRows.length, note: 'Active plan created.' })
+    },
+  )
+
+
   server.registerResource(
     'BarbellMind widget',
     UI_WIDGET,
