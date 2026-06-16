@@ -115,6 +115,19 @@
 .bm-reads .row{display:flex;align-items:center;justify-content:space-between;background:#161618;border-radius:13px;padding:14px 16px;margin-bottom:9px}
 .bm-reads .row .dt{color:#8b8b92;font-weight:600;font-size:14px}
 .bm-reads .row .vl{font-weight:800;font-size:15px}
+/* differentiator chat band */
+.bm-diff{align-items:start}
+@media(max-width:760px){.bm-diff{grid-template-columns:1fr!important;gap:24px!important;padding:28px!important}}
+.bm-chat{background:#0e0e10;border:1px solid var(--border);border-radius:20px;padding:15px;display:flex;flex-direction:column;gap:11px;font-size:13.5px}
+.bm-u{align-self:flex-end;max-width:88%;background:var(--surface-2);border-radius:17px 17px 6px 17px;overflow:hidden}
+.bm-u .cap{padding:10px 13px 11px;color:var(--text);line-height:1.45}
+.bm-photo{display:block;width:100%;height:auto;background:#16181b}
+.bm-tool{display:flex;align-items:center;gap:8px;color:var(--text-2);font-weight:600;font-size:12.5px;margin:2px 2px 0}
+.bm-tool .gl{font-size:15px}.bm-tool .lf{color:var(--muted);font-weight:500}.bm-tool .cd{margin-left:auto;color:var(--muted);font-family:monospace}
+.bm-a{align-self:flex-start;max-width:93%;background:var(--surface-2);padding:11px 14px;border-radius:17px 17px 17px 6px;color:var(--text-2);line-height:1.5}
+.bm-a b{color:var(--text)}
+.bm-mcp{background:#0c0c0e;border:1px solid var(--border);border-radius:18px;padding:16px}
+.bm-foot{align-self:flex-start;max-width:93%;color:var(--muted);font-size:12.5px;padding:0 2px;line-height:1.5}
 </style>
 </head>
 <body>
@@ -171,16 +184,76 @@
 
 <section class="band">
   <div class="wrap">
-    <div class="feat" style="background:linear-gradient(160deg,rgba(52,211,153,.10),transparent 60%),var(--surface);border-radius:28px;padding:40px;display:grid;grid-template-columns:1.1fr .9fr;gap:32px;align-items:center">
+    <div class="feat bm-diff" style="background:linear-gradient(160deg,rgba(52,211,153,.10),transparent 60%),var(--surface);border-radius:28px;padding:40px;display:grid;grid-template-columns:1fr 1.05fr;gap:36px;align-items:start">
       <div>
         <span class="eyebrow">The differentiator</span>
         <h2 style="font-size:clamp(24px,3.4vw,34px);font-weight:840;letter-spacing:-.025em;margin-top:10px">Run your training from Claude or ChatGPT.</h2>
         <p style="color:var(--text-2);margin-top:12px">Log meals and workouts, build plans, and pull progress just by asking, in plain language. Then open the app for the full visual experience. <a href="/ai-coach/" style="color:var(--green)">Learn how it works.</a></p>
       </div>
-      <div style="background:#0e0e10;border:1px solid var(--border);border-radius:18px;padding:16px;font-size:13.5px">
-        <div style="background:var(--surface-2);padding:10px 13px;border-radius:13px;margin-bottom:8px">Log my lunch: 8oz chicken, rice, broccoli. How is my protein today?</div>
-        <div style="background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.25);color:#d7fbef;padding:10px 13px;border-radius:13px">Logged, +540 kcal. You are at 184g of 300g protein with 1,250 kcal left.</div>
+      <div class="bm-chat">
+  <div class="bm-u">
+    <svg class="bm-photo" viewBox="0 0 440 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Plate of grilled chicken, white rice and broccoli">
+    <defs>
+    <radialGradient id="bd_tbl" cx="50%" cy="36%" r="78%"><stop offset="0" stop-color="#24262b"/><stop offset="1" stop-color="#131417"/></radialGradient>
+    <radialGradient id="bd_pl" cx="42%" cy="32%" r="74%"><stop offset="0" stop-color="#fcfcfa"/><stop offset=".72" stop-color="#ececea"/><stop offset="1" stop-color="#d9d9d4"/></radialGradient>
+    <radialGradient id="bd_rice" cx="44%" cy="34%" r="72%"><stop offset="0" stop-color="#fcfbf4"/><stop offset="1" stop-color="#e6e1cf"/></radialGradient>
+    <linearGradient id="bd_chk" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e3ad6b"/><stop offset="1" stop-color="#ac6a2c"/></linearGradient>
+    <clipPath id="bd_cA"><rect x="248" y="96" width="84" height="50" rx="17" transform="rotate(-15 290 121)"/></clipPath>
+    <clipPath id="bd_cB"><rect x="260" y="150" width="76" height="44" rx="16" transform="rotate(13 298 172)"/></clipPath>
+    </defs>
+    <rect width="440" height="300" fill="url(#bd_tbl)"/>
+    <ellipse cx="224" cy="168" rx="142" ry="120" fill="#000" opacity=".33"/>
+    <circle cx="220" cy="150" r="133" fill="url(#bd_pl)"/>
+    <circle cx="220" cy="150" r="133" fill="none" stroke="#d3d3cd" stroke-width="1.4"/>
+    <circle cx="220" cy="150" r="103" fill="none" stroke="#e4e4df" stroke-width="7" opacity=".65"/>
+    <path d="M118 150c-7-31 15-55 47-53 28 2 43 25 36 51-7 27-37 38-62 29-12-4-19-13-21-27z" fill="url(#bd_rice)" stroke="#dcd6c2" stroke-width="1"/>
+    <g stroke="#d7d0ba" stroke-width="2.4" stroke-linecap="round" opacity=".9">
+    <line x1="132" y1="138" x2="139" y2="133"/><line x1="146" y1="129" x2="154" y2="132"/><line x1="160" y1="126" x2="166" y2="133"/>
+    <line x1="128" y1="152" x2="136" y2="150"/><line x1="148" y1="146" x2="156" y2="143"/><line x1="166" y1="143" x2="172" y2="150"/>
+    <line x1="134" y1="166" x2="142" y2="163"/><line x1="152" y1="162" x2="159" y2="167"/><line x1="168" y1="160" x2="174" y2="166"/>
+    <line x1="140" y1="178" x2="148" y2="175"/><line x1="156" y1="176" x2="163" y2="180"/>
+    </g>
+    <g>
+     <g transform="translate(186 198)"><rect x="-4" y="6" width="8" height="16" rx="3" fill="#7a9a52"/><circle cx="-9" cy="2" r="9" fill="#356b2a"/><circle cx="2" cy="-6" r="10" fill="#4c8a37"/><circle cx="11" cy="2" r="9" fill="#2f5f26"/><circle cx="-2" cy="6" r="9" fill="#3f7c30"/><circle cx="6" cy="9" r="7" fill="#58a23c"/></g>
+     <g transform="translate(222 210)"><rect x="-4" y="6" width="9" height="17" rx="3" fill="#7a9a52"/><circle cx="-10" cy="1" r="10" fill="#2f5f26"/><circle cx="2" cy="-7" r="11" fill="#4c8a37"/><circle cx="12" cy="1" r="10" fill="#356b2a"/><circle cx="-1" cy="7" r="10" fill="#58a23c"/><circle cx="7" cy="9" r="8" fill="#3f7c30"/></g>
+     <g transform="translate(256 200)"><rect x="-4" y="6" width="8" height="16" rx="3" fill="#7a9a52"/><circle cx="-9" cy="2" r="9" fill="#4c8a37"/><circle cx="2" cy="-6" r="10" fill="#356b2a"/><circle cx="11" cy="2" r="9" fill="#2f5f26"/><circle cx="0" cy="7" r="8" fill="#58a23c"/></g>
+    </g>
+    <g>
+     <rect x="248" y="96" width="84" height="50" rx="17" transform="rotate(-15 290 121)" fill="url(#bd_chk)" stroke="#8c531f" stroke-width="2"/>
+     <g clip-path="url(#bd_cA)" stroke="#6e3f15" stroke-width="3.4" stroke-linecap="round" opacity=".75">
+      <line x1="262" y1="92" x2="250" y2="150"/><line x1="280" y1="92" x2="268" y2="150"/><line x1="298" y1="92" x2="286" y2="150"/><line x1="316" y1="92" x2="304" y2="150"/>
+     </g>
+     <rect x="260" y="150" width="76" height="44" rx="16" transform="rotate(13 298 172)" fill="url(#bd_chk)" stroke="#8c531f" stroke-width="2"/>
+     <g clip-path="url(#bd_cB)" stroke="#6e3f15" stroke-width="3.2" stroke-linecap="round" opacity=".72">
+      <line x1="272" y1="146" x2="284" y2="198"/><line x1="290" y1="146" x2="302" y2="198"/><line x1="308" y1="146" x2="320" y2="198"/>
+     </g>
+     <ellipse cx="276" cy="112" rx="12" ry="6" fill="#f2cd92" opacity=".5" transform="rotate(-15 276 112)"/>
+    </g>
+    </svg>
+    <div class="cap">log this, i know its 8oz of chicken but don't know the others</div>
+  </div>
+  <div class="bm-tool"><span class="gl">&#127760;</span> Barbell Mind <span class="lf">log_food</span> <span class="cd">&lt;/&gt;</span></div>
+  <div class="bm-a">The chicken is exact at 8&nbsp;oz: <b>374 kcal, 70g protein</b>. I estimated the rest, rice at about a cup (<b>205 kcal, 45g carbs</b>) and broccoli at roughly a cup (<b>55 kcal</b>). That is <b>+634 kcal</b> for the meal.</div>
+  <div class="bm-mcp">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:13px">
+      <div style="display:flex;align-items:center;gap:8px;font-weight:800;font-size:15px"><span style="width:9px;height:9px;border-radius:99px;background:var(--green)"></span> Macros</div>
+      <div style="color:var(--muted);font-size:12px;font-weight:600">Today</div>
+    </div>
+    <div style="background:#10311f;border:1px solid #1f5f3f;color:#34d399;border-radius:10px;padding:9px 12px;font-size:12.5px;font-weight:700;margin-bottom:16px">Logged 8&nbsp;oz chicken, ~1 cup rice, ~1 cup broccoli &middot; +634 kcal</div>
+    <div style="display:flex;justify-content:center;margin-bottom:16px">
+      <div style="width:120px;height:120px;border-radius:50%;background:conic-gradient(var(--green) 143deg,#26262b 0);display:flex;align-items:center;justify-content:center">
+        <div style="width:92px;height:92px;border-radius:50%;background:#0c0c0e;display:flex;flex-direction:column;align-items:center;justify-content:center">
+          <div style="font-size:25px;font-weight:850;letter-spacing:-.02em;line-height:1">994</div>
+          <div style="font-size:11px;color:var(--muted);font-weight:600;margin-top:3px">of 2,500 kcal</div>
+        </div>
       </div>
+    </div>
+    <div style="margin-bottom:11px"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><span style="color:var(--text-2);font-weight:700">Protein</span><span style="font-weight:700"><span style="color:var(--text)">134</span> <span style="color:var(--muted)">/ 300 g</span></span></div><div style="height:8px;border-radius:99px;background:#26262b;overflow:hidden"><div style="height:100%;width:45%;border-radius:99px;background:var(--pink)"></div></div></div>
+    <div style="margin-bottom:11px"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><span style="color:var(--text-2);font-weight:700">Carbs</span><span style="font-weight:700"><span style="color:var(--text)">78</span> <span style="color:var(--muted)">/ 200 g</span></span></div><div style="height:8px;border-radius:99px;background:#26262b;overflow:hidden"><div style="height:100%;width:39%;border-radius:99px;background:var(--amber)"></div></div></div>
+    <div><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><span style="color:var(--text-2);font-weight:700">Fat</span><span style="font-weight:700"><span style="color:var(--text)">24</span> <span style="color:var(--muted)">/ 120 g</span></span></div><div style="height:8px;border-radius:99px;background:#26262b;overflow:hidden"><div style="height:100%;width:20%;border-radius:99px;background:var(--blue)"></div></div></div>
+  </div>
+  <div class="bm-foot">You are at 134g of 300g protein with 1,506 kcal left.</div>
+</div>
     </div>
   </div>
 </section>
