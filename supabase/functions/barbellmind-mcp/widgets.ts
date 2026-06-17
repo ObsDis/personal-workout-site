@@ -255,11 +255,11 @@ window.__onToolResult = function (ctr) {
 </script>
 </body>
 </html>`;
-
-// Onboarding form MCP App view. Self-contained (inline CSS/JS, no CDN, no fetch).
-// Same hand-rolled MCP Apps bridge as WIDGET_HTML: ui/initialize handshake, size
-// reporting, and tools/call back through the host. On submit it calls set_profile
-// via the host (not fetch) and renders a confirmation. No backticks, no ${...}.
+// Onboarding MCP App view — multi-step wizard. Self-contained (inline CSS/JS, no
+// CDN, no fetch). Same hand-rolled MCP Apps bridge as WIDGET_HTML: ui/initialize,
+// size reporting, tools/call back through the host. Steps advance client-side
+// (instant, deterministic); the final step writes via set_profile and confirms.
+// Goal values use the app's canonical enum. No backticks, no ${...}.
 export const ONBOARD_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -272,16 +272,20 @@ export const ONBOARD_HTML = `<!DOCTYPE html>
   body { font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif; color: #fafafa; }
   #root { padding: 6px; }
   .card { background: #161618; border: 1px solid #232327; border-radius: 18px; padding: 18px; max-width: 520px; margin: 0 auto; }
-  .hd { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .hd { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
   .dot { width: 9px; height: 9px; border-radius: 99px; background: #34d399; flex: none; }
   .ttl { font-size: 16px; font-weight: 800; letter-spacing: -.01em; }
-  .sub { font-size: 12.5px; color: #8b8b92; margin: 2px 0 14px; }
+  .sub2 { margin-left: auto; font-size: 11.5px; color: #8b8b92; font-weight: 700; }
+  .bar { height: 4px; background: #26262b; border-radius: 99px; overflow: hidden; margin: 2px 0 16px; }
+  .barfill { height: 100%; background: #34d399; border-radius: 99px; transition: width .2s ease; }
   label { display: block; font-size: 12px; font-weight: 700; color: #a1a1aa; margin: 12px 0 5px; }
   input, select, textarea { width: 100%; background: #0f0f11; border: 1px solid #2a2a2e; border-radius: 10px; padding: 10px 11px; color: #fafafa; font-size: 14px; font-family: inherit; }
   input:focus, select:focus, textarea:focus { outline: none; border-color: #34d399; }
-  textarea { resize: vertical; min-height: 56px; }
+  textarea { resize: vertical; min-height: 64px; }
   .row { display: flex; gap: 10px; } .row > div { flex: 1; }
-  .btn { width: 100%; margin-top: 16px; border: 0; border-radius: 12px; padding: 12px; font-size: 15px; font-weight: 800; cursor: pointer; background: #34d399; color: #06291d; }
+  .nav { display: flex; gap: 10px; margin-top: 18px; }
+  .btn { flex: 1; border: 0; border-radius: 12px; padding: 12px; font-size: 15px; font-weight: 800; cursor: pointer; background: #34d399; color: #06291d; }
+  .btn.ghost { background: #232327; color: #d4d4d8; }
   .btn:disabled { opacity: .6; cursor: default; }
   .msg { font-size: 12.5px; margin-top: 10px; min-height: 16px; color: #fb7185; }
   .okbox { background: #10311f; border: 1px solid #1f5f3f; color: #34d399; border-radius: 12px; padding: 14px; }
@@ -292,7 +296,7 @@ export const ONBOARD_HTML = `<!DOCTYPE html>
 </style>
 </head>
 <body>
-<div id="root"><div class="card"><div class="sub">Loading...</div></div></div>
+<div id="root"><div class="card"><div class="sub2">Loading...</div></div></div>
 <script>
 (function () {
   "use strict";
@@ -301,10 +305,7 @@ export const ONBOARD_HTML = `<!DOCTYPE html>
   var nextId = 1; var pending = {}; var initialized = false; var buffered = null;
   var lastW = 0, lastH = 0;
   function post(m) { window.parent.postMessage(m, TARGET_ORIGIN); }
-  function sendRequest(method, params) {
-    var id = nextId++;
-    return new Promise(function (resolve, reject) { pending[id] = { resolve: resolve, reject: reject }; post({ jsonrpc: "2.0", id: id, method: method, params: params }); });
-  }
+  function sendRequest(method, params) { var id = nextId++; return new Promise(function (resolve, reject) { pending[id] = { resolve: resolve, reject: reject }; post({ jsonrpc: "2.0", id: id, method: method, params: params }); }); }
   function sendNotification(method, params) { post({ jsonrpc: "2.0", method: method, params: params }); }
   function deliver(ctr) { if (typeof window.__onToolResult === "function") { try { window.__onToolResult(ctr); } catch (e) {} } else { buffered = ctr; } }
   function measureAndSendSize() {
@@ -343,34 +344,55 @@ var root = document.getElementById("root");
 function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
 function val(id) { var el = document.getElementById(id); return el ? el.value : ""; }
 function numOrNull(v) { if (v === "" || v == null) return null; var n = Number(v); return isNaN(n) ? null : n; }
-
-var DEFAULTS = { name: "", height_ft: "", height_in: "", weight_lbs: "", goal: "maintain", kcal_target: 2500, protein_target_g: 300, training_split: "ppl", injury_notes: "Lower-back limits, avoid heavy axial loading" };
-
 function opt(pairs, sel) { return pairs.map(function (o) { return '<option value="' + o[0] + '"' + (sel === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join(""); }
 
-function renderForm(d) {
-  root.innerHTML =
-    '<div class="card">'
-    + '<div class="hd"><span class="dot"></span><span class="ttl">Set up your profile</span></div>'
-    + '<div class="sub">Confirm or edit the details, then save. You can change these later.</div>'
-    + '<label>Name</label><input id="f_name" type="text" placeholder="Your name" value="' + esc(d.name) + '" />'
-    + '<label>Height</label><div class="row"><div><input id="f_ft" type="number" inputmode="numeric" min="3" max="8" placeholder="ft" value="' + esc(d.height_ft) + '" /></div><div><input id="f_in" type="number" inputmode="numeric" min="0" max="11" placeholder="in" value="' + esc(d.height_in) + '" /></div></div>'
-    + '<label>Current weight (lbs)</label><input id="f_weight" type="number" inputmode="decimal" min="50" max="700" placeholder="e.g. 185" value="' + esc(d.weight_lbs) + '" />'
-    + '<label>Goal</label><select id="f_goal">' + opt([["cut","Cut"],["maintain","Maintain"],["recomp","Recomp"]], d.goal) + '</select>'
-    + '<div class="row"><div><label>Daily calories</label><input id="f_kcal" type="number" inputmode="numeric" min="800" max="6000" value="' + esc(d.kcal_target) + '" /></div><div><label>Daily protein (g)</label><input id="f_protein" type="number" inputmode="numeric" min="0" max="500" value="' + esc(d.protein_target_g) + '" /></div></div>'
-    + '<label>Training split</label><select id="f_split">' + opt([["ppl","Push / Pull / Legs"],["upper_lower","Upper / Lower"],["full_body","Full Body"],["custom","Custom"]], d.training_split) + '</select>'
-    + '<label>Injury / constraint notes</label><textarea id="f_injury" placeholder="Any limits we should train around">' + esc(d.injury_notes) + '</textarea>'
-    + '<button id="f_save" class="btn">Save profile</button>'
+var DEFAULTS = { name: "", height_ft: "", height_in: "", weight_lbs: "", goal: "maintain", kcal_target: 2500, protein_target_g: 300, training_split: "ppl", injury_notes: "Lower-back limits, avoid heavy axial loading" };
+var GOALS = [["build_muscle", "Build muscle"], ["lose_weight", "Lose weight"], ["gain_strength", "Gain strength"], ["maintain", "Maintain"], ["general_fitness", "General fitness"]];
+var SPLITS = [["ppl", "Push / Pull / Legs"], ["upper_lower", "Upper / Lower"], ["full_body", "Full Body"], ["custom", "Custom"]];
+var TITLES = ["Your basics", "Your goal", "Your macros", "Training split", "Injuries & constraints"];
+var TOTAL = 5;
+var data = {}; var step = 0;
+
+function collect() {
+  if (document.getElementById("f_name")) data.name = val("f_name").trim();
+  if (document.getElementById("f_ft")) data.height_ft = numOrNull(val("f_ft"));
+  if (document.getElementById("f_in")) data.height_in = numOrNull(val("f_in"));
+  if (document.getElementById("f_weight")) data.weight_lbs = numOrNull(val("f_weight"));
+  if (document.getElementById("f_goal")) data.goal = val("f_goal");
+  if (document.getElementById("f_kcal")) data.kcal_target = numOrNull(val("f_kcal"));
+  if (document.getElementById("f_protein")) data.protein_target_g = numOrNull(val("f_protein"));
+  if (document.getElementById("f_split")) data.training_split = val("f_split");
+  if (document.getElementById("f_injury")) data.injury_notes = val("f_injury").trim();
+}
+
+function stepBody(i) {
+  if (i === 0) return '<label>Name</label><input id="f_name" type="text" placeholder="Your name" value="' + esc(data.name) + '" />'
+    + '<label>Height</label><div class="row"><div><input id="f_ft" type="number" inputmode="numeric" min="3" max="8" placeholder="ft" value="' + esc(data.height_ft) + '" /></div><div><input id="f_in" type="number" inputmode="numeric" min="0" max="11" placeholder="in" value="' + esc(data.height_in) + '" /></div></div>'
+    + '<label>Current weight (lbs)</label><input id="f_weight" type="number" inputmode="decimal" min="50" max="700" placeholder="e.g. 185" value="' + esc(data.weight_lbs) + '" />';
+  if (i === 1) return '<label>Goal</label><select id="f_goal">' + opt(GOALS, data.goal) + '</select>';
+  if (i === 2) return '<div class="row"><div><label>Daily calories</label><input id="f_kcal" type="number" inputmode="numeric" min="800" max="6000" value="' + esc(data.kcal_target) + '" /></div><div><label>Daily protein (g)</label><input id="f_protein" type="number" inputmode="numeric" min="0" max="500" value="' + esc(data.protein_target_g) + '" /></div></div>';
+  if (i === 3) return '<label>Training split</label><select id="f_split">' + opt(SPLITS, data.training_split) + '</select>';
+  return '<label>Injury / constraint notes</label><textarea id="f_injury" placeholder="Any limits we should train around">' + esc(data.injury_notes) + '</textarea>';
+}
+
+function renderStep() {
+  var last = step === TOTAL - 1;
+  root.innerHTML = '<div class="card">'
+    + '<div class="hd"><span class="dot"></span><span class="ttl">' + esc(TITLES[step]) + '</span><span class="sub2">Step ' + (step + 1) + ' of ' + TOTAL + '</span></div>'
+    + '<div class="bar"><div class="barfill" style="width:' + (((step + 1) / TOTAL) * 100).toFixed(0) + '%"></div></div>'
+    + stepBody(step)
+    + '<div class="nav">' + (step > 0 ? '<button id="f_back" class="btn ghost">Back</button>' : '') + '<button id="f_next" class="btn">' + (last ? 'Save profile' : 'Next') + '</button></div>'
     + '<div class="msg" id="f_msg"></div>'
     + '</div>';
-  document.getElementById("f_save").addEventListener("click", submit);
+  if (document.getElementById("f_back")) document.getElementById("f_back").addEventListener("click", function () { collect(); step--; renderStep(); });
+  document.getElementById("f_next").addEventListener("click", function () { collect(); if (last) save(); else { step++; renderStep(); } });
   if (window.__notifySize) window.__notifySize();
 }
 
-function submit() {
-  var btn = document.getElementById("f_save"); var msg = document.getElementById("f_msg"); msg.textContent = "";
-  var args = { name: val("f_name").trim(), height_ft: numOrNull(val("f_ft")), height_in: numOrNull(val("f_in")), weight_lbs: numOrNull(val("f_weight")), goal: val("f_goal"), kcal_target: numOrNull(val("f_kcal")), protein_target_g: numOrNull(val("f_protein")), training_split: val("f_split"), injury_notes: val("f_injury").trim() };
-  Object.keys(args).forEach(function (k) { if (args[k] === null || args[k] === "") delete args[k]; });
+function save() {
+  var btn = document.getElementById("f_next"); var msg = document.getElementById("f_msg"); msg.textContent = "";
+  var args = {};
+  ["name", "height_ft", "height_in", "weight_lbs", "goal", "kcal_target", "protein_target_g", "training_split", "injury_notes"].forEach(function (k) { if (data[k] !== null && data[k] !== "" && data[k] !== undefined) args[k] = data[k]; });
   if (typeof window.__callServerTool !== "function") { msg.textContent = "Not connected to the app host."; return; }
   btn.disabled = true; btn.textContent = "Saving...";
   window.__callServerTool("set_profile", args).then(function (ctr) {
@@ -383,10 +405,9 @@ function line(k, v) { if (v == null || v === "") return ""; return '<div class="
 
 function renderConfirm(s) {
   var ht = (s.height_ft != null && s.height_ft !== "") ? (s.height_ft + " ft " + (s.height_in || 0) + " in") : "";
-  var goalMap = { cut: "Cut", maintain: "Maintain", recomp: "Recomp" };
+  var goalMap = { build_muscle: "Build muscle", lose_weight: "Lose weight", gain_strength: "Gain strength", maintain: "Maintain", general_fitness: "General fitness" };
   var splitMap = { ppl: "Push / Pull / Legs", upper_lower: "Upper / Lower", full_body: "Full Body", custom: "Custom" };
-  root.innerHTML =
-    '<div class="card"><div class="okbox"><h3>Profile saved</h3>'
+  root.innerHTML = '<div class="card"><div class="okbox"><h3>Profile saved</h3>'
     + line("Name", s.name || s.username)
     + line("Height", ht)
     + line("Weight", (s.weight_lbs != null && s.weight_lbs !== "" ? s.weight_lbs + " lbs" : ""))
@@ -399,15 +420,18 @@ function renderConfirm(s) {
   if (window.__notifySize) window.__notifySize();
 }
 
+function start(prefill) {
+  data = {}; for (var k in DEFAULTS) data[k] = DEFAULTS[k];
+  if (prefill) for (var k2 in prefill) { if (prefill[k2] != null && prefill[k2] !== "") data[k2] = prefill[k2]; }
+  step = 0; renderStep();
+}
+
 window.__onToolResult = function (ctr) {
   var d = (ctr && (ctr.structuredContent || (ctr._meta && ctr._meta.render))) || null;
-  var prefill = (d && d.prefill) ? d.prefill : null;
-  var merged = {}; for (var k in DEFAULTS) merged[k] = DEFAULTS[k];
-  if (prefill) for (var k2 in prefill) { if (prefill[k2] != null && prefill[k2] !== "") merged[k2] = prefill[k2]; }
-  renderForm(merged);
+  start(d && d.prefill ? d.prefill : null);
 };
 
-setTimeout(function () { if (root.textContent.indexOf("Loading") !== -1) renderForm(DEFAULTS); }, 400);
+setTimeout(function () { if (root.textContent.indexOf("Loading") !== -1) start(null); }, 400);
 </script>
 </body>
 </html>`;
