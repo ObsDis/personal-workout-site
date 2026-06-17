@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>BarbellMind</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.obsidiandist.workout</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>barbellmind</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.obsidiandist.workout</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>workout</string>
+			</array>
+		</dict>
+	</array>
+	<key>CFBundleVersion</key>
+	<string>70</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Used to optionally connect to Bluetooth heart-rate or fitness devices.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Used to scan food barcodes and capture meal photos for nutrition tracking.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Used to import your body weight history from Apple Health (and from scales like VeSync, Withings, or Garmin that sync to Health).</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Used to write the body weight entries you log in BarbellMind back to Apple Health so other apps stay in sync.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Used for voice chat with the AI coach (speech-to-text).</string>
+	<key>NSMotionUsageDescription</key>
+	<string>Used to detect activity for cardio session tracking.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Used to save progress photos and exported workout reports to your photo library.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Used to attach meal photos from your library for AI nutrition recognition.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Used to convert your voice into text when you talk to the AI coach.</string>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>armv7</string>
+	</array>
+	<key>UIStatusBarStyle</key>
+	<string>UIStatusBarStyleLightContent</string>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<false/>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+</dict>
+</plist>

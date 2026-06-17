@@ -5,9 +5,16 @@ node_modules/
 .idea/
 *.bak
 *.backup
-# Capacitor native projects (regenerated per-machine)
-ios/
+# Capacitor native projects
+# iOS project IS tracked now so we have version history (incl. Pods for reproducible restores).
+# To stop tracking the heavy Pods instead, uncomment the next line:
+# ios/App/Pods/
 android/
+ios/App/build/
+ios/App/DerivedData/
+ios/**/xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
 .netlify/
 # secrets — never commit
 .env
