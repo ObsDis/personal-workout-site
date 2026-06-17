@@ -397,13 +397,24 @@ function save() {
   btn.disabled = true; btn.textContent = "Saving...";
   window.__callServerTool("set_profile", args).then(function (ctr) {
     var saved = (ctr && ctr.structuredContent && ctr.structuredContent.saved) || (ctr && ctr._meta && ctr._meta.render && ctr._meta.render.saved) || args;
-    renderConfirm(saved);
+    window.__callServerTool("setup_default_plan", { split_type: data.training_split }).then(function (pr) {
+      var planRes = (pr && pr.structuredContent) || (pr && pr._meta && pr._meta.render) || null;
+      renderConfirm(saved, planRes);
+    }).catch(function () { renderConfirm(saved, null); });
   }).catch(function (e) { btn.disabled = false; btn.textContent = "Save profile"; msg.textContent = (e && e.message) ? e.message : "Could not save. Try again."; });
 }
 
 function line(k, v) { if (v == null || v === "") return ""; return '<div class="line"><span class="k">' + esc(k) + '</span><span class="v">' + esc(v) + '</span></div>'; }
+function planLine(pr) {
+  if (!pr || !pr.plan) return "";
+  var splitMap = { ppl: "Push / Pull / Legs", upper_lower: "Upper / Lower", full_body: "Full Body", custom: "Custom" };
+  var p = pr.plan; var nm = splitMap[p.split_type] || p.name || p.split_type || "Plan";
+  if (pr.created === false) return line("Plan", nm + " (kept existing)");
+  var det = (p.training_days != null ? p.training_days + " days" : "") + (p.exercises != null ? ", " + p.exercises + " exercises" : "");
+  return line("Plan", nm + (det ? " (" + det + ")" : " created"));
+}
 
-function renderConfirm(s) {
+function renderConfirm(s, planRes) {
   var ht = (s.height_ft != null && s.height_ft !== "") ? (s.height_ft + " ft " + (s.height_in || 0) + " in") : "";
   var goalMap = { build_muscle: "Build muscle", lose_weight: "Lose weight", gain_strength: "Gain strength", maintain: "Maintain", general_fitness: "General fitness" };
   var splitMap = { ppl: "Push / Pull / Legs", upper_lower: "Upper / Lower", full_body: "Full Body", custom: "Custom" };
@@ -416,6 +427,7 @@ function renderConfirm(s) {
     + line("Protein", (s.protein_target_g != null && s.protein_target_g !== "" ? s.protein_target_g + " g" : ""))
     + line("Split", splitMap[s.training_split] || s.training_split)
     + line("Notes", s.injury_notes)
+    + planLine(planRes)
     + '</div></div>';
   if (window.__notifySize) window.__notifySize();
 }

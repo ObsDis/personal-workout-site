@@ -37,6 +37,21 @@ const sumMacros = (rows: any[]) =>
     { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0, fiber_g: 0 },
   )
 
+const SPLIT_TEMPLATES: Record<string, string[]> = {
+  ppl: ['rest', 'push', 'pull', 'legs', 'push', 'pull', 'legs'],
+  upper_lower: ['rest', 'upper', 'lower', 'rest', 'upper', 'lower', 'rest'],
+  full_body: ['rest', 'full', 'rest', 'full', 'rest', 'full', 'rest'],
+  custom: ['rest', 'push', 'pull', 'legs', 'push', 'pull', 'legs'],
+}
+const EXERCISE_LIBRARY: Record<string, Array<{ name: string; target_sets: number; target_reps: string }>> = {
+  push: [{ name: 'Barbell Bench Press', target_sets: 4, target_reps: '6-10' }, { name: 'Incline Dumbbell Press', target_sets: 3, target_reps: '8-12' }, { name: 'Overhead Press', target_sets: 3, target_reps: '6-10' }, { name: 'Dips', target_sets: 3, target_reps: '8-12' }, { name: 'Cable Fly', target_sets: 3, target_reps: '10-15' }, { name: 'Lateral Raise', target_sets: 3, target_reps: '12-15' }, { name: 'Tricep Pushdown', target_sets: 3, target_reps: '10-15' }],
+  pull: [{ name: 'Barbell Row', target_sets: 4, target_reps: '6-10' }, { name: 'Pull-ups', target_sets: 3, target_reps: '6-10' }, { name: 'Lat Pulldown', target_sets: 3, target_reps: '8-12' }, { name: 'Seated Cable Row', target_sets: 3, target_reps: '8-12' }, { name: 'Face Pulls', target_sets: 3, target_reps: '12-15' }, { name: 'Barbell Curl', target_sets: 3, target_reps: '8-12' }, { name: 'Hammer Curl', target_sets: 3, target_reps: '10-12' }],
+  legs: [{ name: 'Back Squat', target_sets: 4, target_reps: '5-8' }, { name: 'Romanian Deadlift', target_sets: 3, target_reps: '8-10' }, { name: 'Leg Press', target_sets: 3, target_reps: '10-12' }, { name: 'Walking Lunges', target_sets: 3, target_reps: '10/leg' }, { name: 'Leg Curl', target_sets: 3, target_reps: '10-12' }, { name: 'Leg Extension', target_sets: 3, target_reps: '12-15' }, { name: 'Standing Calf Raise', target_sets: 4, target_reps: '10-15' }],
+  upper: [{ name: 'Bench Press', target_sets: 4, target_reps: '6-10' }, { name: 'Barbell Row', target_sets: 4, target_reps: '6-10' }, { name: 'Overhead Press', target_sets: 3, target_reps: '8-10' }, { name: 'Pull-ups', target_sets: 3, target_reps: '6-10' }, { name: 'Lateral Raise', target_sets: 3, target_reps: '12-15' }, { name: 'Barbell Curl', target_sets: 3, target_reps: '8-12' }, { name: 'Tricep Pushdown', target_sets: 3, target_reps: '10-15' }],
+  lower: [{ name: 'Back Squat', target_sets: 4, target_reps: '5-8' }, { name: 'Romanian Deadlift', target_sets: 3, target_reps: '8-10' }, { name: 'Bulgarian Split Squat', target_sets: 3, target_reps: '8/leg' }, { name: 'Leg Press', target_sets: 3, target_reps: '10-12' }, { name: 'Leg Curl', target_sets: 3, target_reps: '10-12' }, { name: 'Standing Calf Raise', target_sets: 4, target_reps: '10-15' }],
+  full: [{ name: 'Back Squat', target_sets: 3, target_reps: '6-8' }, { name: 'Bench Press', target_sets: 3, target_reps: '6-8' }, { name: 'Barbell Row', target_sets: 3, target_reps: '6-8' }, { name: 'Overhead Press', target_sets: 3, target_reps: '8-10' }, { name: 'Romanian Deadlift', target_sets: 3, target_reps: '8-10' }, { name: 'Pull-ups', target_sets: 3, target_reps: '6-10' }],
+}
+
 export function buildServer(db: SupabaseClient, user: { id: string; email?: string }) {
   const server = new McpServer({ name: 'barbellmind', version: '1.0.0' })
   const uid = user.id
@@ -676,7 +691,7 @@ export function buildServer(db: SupabaseClient, user: { id: string; email?: stri
   // ---------- ONBOARDING (MCP App: interactive inline form) ----------
   server.registerTool(
     'start_onboarding',
-    { title: 'Onboarding form', description: 'Open an interactive onboarding form (rendered inline as an MCP App) for a user to set their profile: name, height, current weight, goal (cut/maintain/recomp), daily calorie and protein targets, training split, and injury/constraint notes. Fields are pre-filled with the user\'s current values or sensible defaults. On submit the form writes via set_profile and shows a confirmation. Use this when the user wants a form-based setup instead of a chat back-and-forth.', inputSchema: {}, _meta: { ui: { resourceUri: ONBOARD_WIDGET } } },
+    { title: 'Onboarding form', description: 'Open an interactive onboarding form (rendered inline as an MCP App) for a user to set their profile: name, height, current weight, goal (cut/maintain/recomp), daily calorie and protein targets, training split, and injury/constraint notes. Fields are pre-filled with the user\'s current values or sensible defaults. On submit the form writes via set_profile and then stands up a default active training plan from the chosen split (via setup_default_plan, non-destructive) so a brand-new user lands ready to train, then shows a confirmation. Use this when the user wants a form-based setup instead of a chat back-and-forth.', inputSchema: {}, _meta: { ui: { resourceUri: ONBOARD_WIDGET } } },
     async () => {
       const { data: p } = await db.from('profiles').select('username,height_ft,height_in,weight_lbs,goal,kcal_target,protein_target_g,training_split,injury_notes').eq('id', uid).maybeSingle()
       const prefill = {
@@ -707,6 +722,35 @@ export function buildServer(db: SupabaseClient, user: { id: string; email?: stri
       const saved = { ...(data as any), name: (data as any).username }
       const summary = 'Saved profile' + (data.username ? ' for ' + data.username : '') + ': goal ' + (data.goal || '-') + ', ' + (data.kcal_target || '-') + ' kcal, ' + (data.protein_target_g || '-') + 'g protein, split ' + (data.training_split || '-') + (data.injury_notes ? ', notes: ' + data.injury_notes : '') + '.'
       return { content: [{ type: 'text' as const, text: summary }], structuredContent: { saved } as Record<string, unknown>, _meta: { render: { saved } } }
+    },
+  )
+
+  server.registerTool(
+    'setup_default_plan',
+    { title: 'Set up default plan', description: 'Create the active training plan for the user from a chosen split (ppl, upper_lower, full_body, or custom), pre-filled with standard exercises per day so a new user has something to train against. NON-DESTRUCTIVE: if the user already has an active plan it is left untouched and reported, so this never wipes an existing plan. The onboarding form calls this right after the profile is saved. To intentionally replace an existing plan, use create_plan instead.', inputSchema: { split_type: z.enum(['ppl', 'upper_lower', 'full_body', 'custom']), name: z.string().optional() } },
+    async (a) => {
+      const { data: existing } = await db.from('plans').select('id,name,split_type').eq('is_active', true).order('created_at', { ascending: false }).limit(1).maybeSingle()
+      if (existing) {
+        const plan = { name: existing.name, split_type: existing.split_type }
+        return { content: [{ type: 'text' as const, text: 'You already have an active plan (' + existing.name + '); kept it unchanged.' }], structuredContent: { created: false, plan } as Record<string, unknown>, _meta: { render: { created: false, plan } } }
+      }
+      const tmpl = SPLIT_TEMPLATES[a.split_type] || SPLIT_TEMPLATES.ppl
+      const { data: plan, error } = await db.from('plans').insert({ user_id: uid, split_type: a.split_type, name: a.name || (a.split_type.toUpperCase() + ' plan'), is_active: true }).select().single()
+      if (error) return fail(error.message)
+      const dayRows = tmpl.map((slot, i) => ({ plan_id: plan.id, day_of_week: i, slot_type: slot, slot_key: (slot && slot !== 'rest') ? (slot + '-' + i) : null, custom_name: null, cardio_type: null, cardio_duration_min: null }))
+      const { error: eD } = await db.from('plan_days').insert(dayRows)
+      if (eD) return fail('Plan created but saving days failed: ' + eD.message)
+      const exRows: any[] = []
+      tmpl.forEach((slot, i) => {
+        if (!slot || slot === 'rest') return
+        const lib = EXERCISE_LIBRARY[slot] || []
+        const key = slot + '-' + i
+        lib.forEach((x, j) => exRows.push({ plan_id: plan.id, slot_type: slot, slot_key: key, exercise_name: x.name, target_sets: x.target_sets, target_reps: x.target_reps, order_idx: j }))
+      })
+      if (exRows.length) { const { error: eE } = await db.from('plan_exercises').insert(exRows); if (eE) return fail('Plan and days saved but exercises failed: ' + eE.message) }
+      const trainingDays = tmpl.filter((sl) => sl && sl !== 'rest').length
+      const summary = { split_type: a.split_type, name: plan.name, training_days: trainingDays, exercises: exRows.length }
+      return { content: [{ type: 'text' as const, text: 'Created active plan: ' + plan.name + ' (' + trainingDays + ' training days, ' + exRows.length + ' exercises).' }], structuredContent: { created: true, plan: summary } as Record<string, unknown>, _meta: { render: { created: true, plan: summary } } }
     },
   )
 
