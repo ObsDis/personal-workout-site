@@ -601,31 +601,37 @@ export function buildServer(db: SupabaseClient, user: { id: string; email?: stri
   // ---------- ACCOUNT SETUP (mirrors the in-app onboarding) ----------
   server.registerTool(
     'start_account_setup',
-    { title: 'Start account setup', description: 'Begin guided account setup for a new BarbellMind user. Returns the exact questionnaire the in-app setup asks, the valid options, and the split day-templates, plus what is already set on the account. When a user asks to set up their BarbellMind account, call this FIRST, then ask them every question it returns, one at a time and in order (basic stats, goal, minutes per workout day, training split, the 7-day layout, and the exercises for each training day). Once you have the answers, call update_profile, then create_plan. Macro targets are optional and are not part of the app setup, but you may offer to set them afterward with set_macro_targets.', inputSchema: {} },
+    { title: 'Start account setup', description: 'Begin guided account setup for a brand-new BarbellMind user. Returns the questionnaire to ask, the valid options, and split day-templates, plus what is already set. When a user asks to set up their account, call this FIRST, then ALWAYS ask them every question it returns, one at a time, in order. Never auto-fill or skip a question; if the user says to just do it for them, still propose specific values and have them confirm. Start with nutrition/macros before building the training plan. Save with set_macro_targets (macros), update_profile (stats, goal, daily_minutes), and create_plan (split + 7-day layout + exercises).', inputSchema: {} },
     async () => {
       const { data: profile } = await db.from('profiles').select('username,age,height_ft,height_in,weight_lbs,goal,daily_minutes,kcal_target,protein_target_g,carbs_target_g,fat_target_g').eq('id', uid).maybeSingle()
       const { data: plan } = await db.from('plans').select('id,split_type,name').eq('is_active', true).order('created_at', { ascending: false }).limit(1).maybeSingle()
       return ok({
-        instructions: 'Ask the user each question below one at a time, in order, mirroring the BarbellMind app setup. Do not skip any. After collecting the answers, call update_profile (age, height_ft, height_in, weight_lbs, goal, daily_minutes), then call create_plan (split_type plus the 7-day layout with each training day\'s exercises). If a field is already set under already_set, you can confirm it rather than re-ask. Macro targets are optional; after the plan is saved you may offer to set them with set_macro_targets.',
+        instructions: 'ALWAYS ask the user every question below, one at a time, in order. Never auto-fill or assume an answer; even if the user says to just set it up for them, propose specific values and have them confirm. Start with nutrition/macros (step 4) before building the training plan. Use the experience level and guidance answers (step 1) to calibrate how much you propose vs ask: full guidance = propose sensible values and confirm; some = suggest options; minimal = ask for their own values. When you have the answers, save with set_macro_targets (calories + macros), then update_profile (age, height_ft, height_in, weight_lbs, goal, daily_minutes), then create_plan (split_type + the 7-day layout with each day\'s exercises). Experience and guidance levels shape the conversation and are not stored on the profile yet.',
         already_set: { profile: profile || null, active_plan: plan || null },
         questions: [
-          { step: 1, field: 'basics', ask: ['Age (years)', 'Height (feet and inches)', 'Body weight (lbs)'] },
-          { step: 2, field: 'goal', ask: 'What is your main goal right now?', options: [
+          { step: 1, field: 'experience_and_guidance', ask: [
+            'What is your training experience: beginner, intermediate, or advanced?',
+            'How much guidance do you want for your WORKOUTS: full (set it up for me), some (suggest and I will adjust), or minimal (I will set it myself)?',
+            'How much guidance do you want for your NUTRITION: full, some, or minimal?',
+          ], options: { experience: ['beginner', 'intermediate', 'advanced'], guidance: ['full', 'some', 'minimal'] } },
+          { step: 2, field: 'basics', ask: ['Age (years)', 'Height (feet and inches)', 'Body weight (lbs)'] },
+          { step: 3, field: 'goal', ask: 'What is your main goal right now?', options: [
             { value: 'build_muscle', label: 'Build muscle' },
             { value: 'lose_weight', label: 'Lose weight' },
             { value: 'gain_strength', label: 'Gain strength' },
             { value: 'maintain', label: 'Maintain' },
             { value: 'general_fitness', label: 'General fitness' },
           ] },
-          { step: 3, field: 'daily_minutes', ask: 'About how many minutes do you train on a workout day?', presets: [30, 45, 60, 75, 90], custom_range: '15-240' },
-          { step: 4, field: 'split_type', ask: 'Which training split do you want? (template is Sunday-first)', options: [
+          { step: 4, field: 'macros', ask: 'Nutrition first, before the workout plan. Set daily targets: calories, protein (g), carbs (g), fat (g). If they chose full nutrition guidance, propose targets from their stats and goal and confirm; if some, suggest a sensible range; if minimal, ask for their own numbers.', saves_with: 'set_macro_targets' },
+          { step: 5, field: 'daily_minutes', ask: 'About how many minutes do you train on a workout day?', presets: [30, 45, 60, 75, 90], custom_range: '15-240' },
+          { step: 6, field: 'split_type', ask: 'Which training split do you want? (template is Sunday-first)', options: [
             { value: 'ppl', label: 'Push / Pull / Legs', template: ['rest', 'push', 'pull', 'legs', 'push', 'pull', 'legs'] },
             { value: 'upper_lower', label: 'Upper / Lower', template: ['rest', 'upper', 'lower', 'rest', 'upper', 'lower', 'rest'] },
             { value: 'full_body', label: 'Full Body', template: ['rest', 'full', 'rest', 'full', 'rest', 'full', 'rest'] },
             { value: 'custom', label: 'Custom / Build your own', template: ['rest', 'rest', 'rest', 'rest', 'rest', 'rest', 'rest'] },
           ] },
-          { step: 5, field: 'days', ask: 'Confirm or adjust each day of the week, Sunday first. Pick a slot_type for each day.', slot_types: ['push', 'pull', 'legs', 'upper', 'lower', 'full', 'cardio', 'rest', 'custom'], note: 'Cardio days can include cardio_type and cardio_duration_min; custom days can have a custom_name.' },
-          { step: 6, field: 'exercises', ask: 'For each training day, list the exercises with target sets and target reps (e.g. 8-12). Offer the standard template for the chosen split if they want sensible defaults.' },
+          { step: 7, field: 'days', ask: 'Confirm or adjust each day of the week, Sunday first. Pick a slot_type for each day.', slot_types: ['push', 'pull', 'legs', 'upper', 'lower', 'full', 'cardio', 'rest', 'custom'], note: 'Cardio days can include cardio_type and cardio_duration_min; custom days can have a custom_name.' },
+          { step: 8, field: 'exercises', ask: 'For each training day, list the exercises with target sets and target reps (e.g. 8-12). Offer the standard template for the chosen split if they want sensible defaults.' },
         ],
       })
     },
