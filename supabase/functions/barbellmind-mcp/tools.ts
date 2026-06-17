@@ -4,7 +4,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { WIDGET_HTML } from './widgets.ts'
+import { WIDGET_HTML, ONBOARD_HTML } from './widgets.ts'
 
 const todayUTC = () => new Date().toISOString().slice(0, 10)
 const ok = (obj: unknown) => ({
@@ -19,6 +19,7 @@ const needConfirm = (what: string) => ({
 })
 const UI_MIME = 'text/html;profile=mcp-app'
 const UI_WIDGET = 'ui://barbellmind/widget-v7.html'
+const ONBOARD_WIDGET = 'ui://barbellmind/onboard-v1.html'
 const uiOk = (summary: string, payload: unknown) => ({
   content: [{ type: 'text' as const, text: summary }],
   structuredContent: payload as Record<string, unknown>,
@@ -672,6 +673,43 @@ export function buildServer(db: SupabaseClient, user: { id: string; email?: stri
   )
 
 
+  // ---------- ONBOARDING (MCP App: interactive inline form) ----------
+  server.registerTool(
+    'start_onboarding',
+    { title: 'Onboarding form', description: 'Open an interactive onboarding form (rendered inline as an MCP App) for a user to set their profile: name, height, current weight, goal (cut/maintain/recomp), daily calorie and protein targets, training split, and injury/constraint notes. Fields are pre-filled with the user\'s current values or sensible defaults. On submit the form writes via set_profile and shows a confirmation. Use this when the user wants a form-based setup instead of a chat back-and-forth.', inputSchema: {}, _meta: { ui: { resourceUri: ONBOARD_WIDGET } } },
+    async () => {
+      const { data: p } = await db.from('profiles').select('username,height_ft,height_in,weight_lbs,goal,kcal_target,protein_target_g,training_split,injury_notes').eq('id', uid).maybeSingle()
+      const prefill = {
+        name: p?.username ?? '',
+        height_ft: p?.height_ft ?? '',
+        height_in: p?.height_in ?? '',
+        weight_lbs: p?.weight_lbs ?? '',
+        goal: p?.goal ?? 'maintain',
+        kcal_target: p?.kcal_target ?? 2500,
+        protein_target_g: p?.protein_target_g ?? 300,
+        training_split: p?.training_split ?? 'ppl',
+        injury_notes: p?.injury_notes ?? 'Lower-back limits, avoid heavy axial loading',
+      }
+      return uiOk('Opening the onboarding form. Fill it in and tap Save profile.', { kind: 'onboard', prefill })
+    },
+  )
+
+  server.registerTool(
+    'set_profile',
+    { title: 'Set profile', description: 'Create or update the user profile in a single upsert (works for a brand-new account with no profile row). Used by the onboarding form on submit, and callable directly. Fields: name, height_ft, height_in, weight_lbs, goal (cut/maintain/recomp), kcal_target, protein_target_g, training_split, injury_notes. Only provided fields change.', inputSchema: { name: z.string().optional(), height_ft: z.number().int().optional(), height_in: z.number().int().optional(), weight_lbs: z.number().optional(), goal: z.string().optional(), kcal_target: z.number().int().optional(), protein_target_g: z.number().int().optional(), training_split: z.string().optional(), injury_notes: z.string().optional() } },
+    async (a) => {
+      const patch: any = { id: uid, updated_at: new Date().toISOString() }
+      if (a.name != null) patch.username = a.name
+      for (const k of ['height_ft', 'height_in', 'weight_lbs', 'goal', 'kcal_target', 'protein_target_g', 'training_split', 'injury_notes'] as const) if (a[k] != null) patch[k] = a[k]
+      if (Object.keys(patch).length <= 2) return fail('Provide at least one field to set.')
+      const { data, error } = await db.from('profiles').upsert(patch).select('username,height_ft,height_in,weight_lbs,goal,kcal_target,protein_target_g,training_split,injury_notes').single()
+      if (error) return fail(error.message)
+      const saved = { ...(data as any), name: (data as any).username }
+      const summary = 'Saved profile' + (data.username ? ' for ' + data.username : '') + ': goal ' + (data.goal || '-') + ', ' + (data.kcal_target || '-') + ' kcal, ' + (data.protein_target_g || '-') + 'g protein, split ' + (data.training_split || '-') + (data.injury_notes ? ', notes: ' + data.injury_notes : '') + '.'
+      return { content: [{ type: 'text' as const, text: summary }], structuredContent: { saved } as Record<string, unknown>, _meta: { render: { saved } } }
+    },
+  )
+
   server.registerResource(
     'BarbellMind widget',
     UI_WIDGET,
@@ -682,6 +720,15 @@ export function buildServer(db: SupabaseClient, user: { id: string; email?: stri
         mimeType: UI_MIME,
         text: WIDGET_HTML,
       }],
+    }),
+  )
+
+  server.registerResource(
+    'BarbellMind onboarding',
+    ONBOARD_WIDGET,
+    { mimeType: UI_MIME, description: 'Interactive onboarding form (MCP App).' },
+    async (u) => ({
+      contents: [{ uri: u.href, mimeType: UI_MIME, text: ONBOARD_HTML }],
     }),
   )
 

@@ -255,3 +255,159 @@ window.__onToolResult = function (ctr) {
 </script>
 </body>
 </html>`;
+
+// Onboarding form MCP App view. Self-contained (inline CSS/JS, no CDN, no fetch).
+// Same hand-rolled MCP Apps bridge as WIDGET_HTML: ui/initialize handshake, size
+// reporting, and tools/call back through the host. On submit it calls set_profile
+// via the host (not fetch) and renders a confirmation. No backticks, no ${...}.
+export const ONBOARD_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BarbellMind Onboarding</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #0b0b0c; }
+  body { font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif; color: #fafafa; }
+  #root { padding: 6px; }
+  .card { background: #161618; border: 1px solid #232327; border-radius: 18px; padding: 18px; max-width: 520px; margin: 0 auto; }
+  .hd { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .dot { width: 9px; height: 9px; border-radius: 99px; background: #34d399; flex: none; }
+  .ttl { font-size: 16px; font-weight: 800; letter-spacing: -.01em; }
+  .sub { font-size: 12.5px; color: #8b8b92; margin: 2px 0 14px; }
+  label { display: block; font-size: 12px; font-weight: 700; color: #a1a1aa; margin: 12px 0 5px; }
+  input, select, textarea { width: 100%; background: #0f0f11; border: 1px solid #2a2a2e; border-radius: 10px; padding: 10px 11px; color: #fafafa; font-size: 14px; font-family: inherit; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: #34d399; }
+  textarea { resize: vertical; min-height: 56px; }
+  .row { display: flex; gap: 10px; } .row > div { flex: 1; }
+  .btn { width: 100%; margin-top: 16px; border: 0; border-radius: 12px; padding: 12px; font-size: 15px; font-weight: 800; cursor: pointer; background: #34d399; color: #06291d; }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .msg { font-size: 12.5px; margin-top: 10px; min-height: 16px; color: #fb7185; }
+  .okbox { background: #10311f; border: 1px solid #1f5f3f; color: #34d399; border-radius: 12px; padding: 14px; }
+  .okbox h3 { margin: 0 0 8px; font-size: 15px; }
+  .okbox .line { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; padding: 5px 0; border-top: 1px solid #1f5f3f; }
+  .okbox .line:first-of-type { border-top: 0; }
+  .okbox .k { color: #9fe7c8; } .okbox .v { font-weight: 700; text-align: right; }
+</style>
+</head>
+<body>
+<div id="root"><div class="card"><div class="sub">Loading...</div></div></div>
+<script>
+(function () {
+  "use strict";
+  var PROTOCOL_VERSION = "2026-01-26";
+  var TARGET_ORIGIN = "*";
+  var nextId = 1; var pending = {}; var initialized = false; var buffered = null;
+  var lastW = 0, lastH = 0;
+  function post(m) { window.parent.postMessage(m, TARGET_ORIGIN); }
+  function sendRequest(method, params) {
+    var id = nextId++;
+    return new Promise(function (resolve, reject) { pending[id] = { resolve: resolve, reject: reject }; post({ jsonrpc: "2.0", id: id, method: method, params: params }); });
+  }
+  function sendNotification(method, params) { post({ jsonrpc: "2.0", method: method, params: params }); }
+  function deliver(ctr) { if (typeof window.__onToolResult === "function") { try { window.__onToolResult(ctr); } catch (e) {} } else { buffered = ctr; } }
+  function measureAndSendSize() {
+    try {
+      var html = document.documentElement; var prev = html.style.height; html.style.height = "max-content";
+      var height = Math.ceil(html.getBoundingClientRect().height); html.style.height = prev;
+      var width = Math.ceil(window.innerWidth);
+      if (width !== lastW || height !== lastH) { lastW = width; lastH = height; sendNotification("ui/notifications/size-changed", { width: width, height: height }); }
+    } catch (e) {}
+  }
+  window.__notifySize = measureAndSendSize;
+  function setupResize() {
+    measureAndSendSize();
+    try {
+      if (typeof ResizeObserver !== "undefined") { var ro = new ResizeObserver(function () { if (window.requestAnimationFrame) window.requestAnimationFrame(measureAndSendSize); else measureAndSendSize(); }); ro.observe(document.documentElement); ro.observe(document.body); }
+      window.addEventListener("resize", measureAndSendSize);
+    } catch (e) {}
+  }
+  window.addEventListener("message", function (event) {
+    var msg = event.data;
+    if (!msg || msg.jsonrpc !== "2.0") return;
+    if (msg.id !== undefined && msg.id !== null && pending[msg.id]) { var p = pending[msg.id]; delete pending[msg.id]; if (msg.error) { p.reject(new Error((msg.error && msg.error.message) || "RPC error")); } else { p.resolve(msg.result); } return; }
+    if (typeof msg.method === "string") { if (msg.method === "ui/notifications/tool-result") { deliver(msg.params); } return; }
+  });
+  window.__callServerTool = function (name, args) { if (!initialized) return Promise.reject(new Error("not ready")); return sendRequest("tools/call", { name: name, arguments: args || {} }); };
+  if (!Object.prototype.hasOwnProperty.call(window, "__onToolResult")) {
+    var stored;
+    Object.defineProperty(window, "__onToolResult", { configurable: true, get: function () { return stored; }, set: function (fn) { stored = fn; if (typeof fn === "function" && buffered !== null) { var r = buffered; buffered = null; try { fn(r); } catch (e) {} } } });
+  }
+  sendRequest("ui/initialize", { appCapabilities: {}, appInfo: { name: "BarbellMind Onboarding", version: "1.0.0" }, protocolVersion: PROTOCOL_VERSION })
+    .then(function () { sendNotification("ui/notifications/initialized", {}); initialized = true; setupResize(); })
+    .catch(function () {});
+})();
+
+var root = document.getElementById("root");
+function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+function val(id) { var el = document.getElementById(id); return el ? el.value : ""; }
+function numOrNull(v) { if (v === "" || v == null) return null; var n = Number(v); return isNaN(n) ? null : n; }
+
+var DEFAULTS = { name: "", height_ft: "", height_in: "", weight_lbs: "", goal: "maintain", kcal_target: 2500, protein_target_g: 300, training_split: "ppl", injury_notes: "Lower-back limits, avoid heavy axial loading" };
+
+function opt(pairs, sel) { return pairs.map(function (o) { return '<option value="' + o[0] + '"' + (sel === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join(""); }
+
+function renderForm(d) {
+  root.innerHTML =
+    '<div class="card">'
+    + '<div class="hd"><span class="dot"></span><span class="ttl">Set up your profile</span></div>'
+    + '<div class="sub">Confirm or edit the details, then save. You can change these later.</div>'
+    + '<label>Name</label><input id="f_name" type="text" placeholder="Your name" value="' + esc(d.name) + '" />'
+    + '<label>Height</label><div class="row"><div><input id="f_ft" type="number" inputmode="numeric" min="3" max="8" placeholder="ft" value="' + esc(d.height_ft) + '" /></div><div><input id="f_in" type="number" inputmode="numeric" min="0" max="11" placeholder="in" value="' + esc(d.height_in) + '" /></div></div>'
+    + '<label>Current weight (lbs)</label><input id="f_weight" type="number" inputmode="decimal" min="50" max="700" placeholder="e.g. 185" value="' + esc(d.weight_lbs) + '" />'
+    + '<label>Goal</label><select id="f_goal">' + opt([["cut","Cut"],["maintain","Maintain"],["recomp","Recomp"]], d.goal) + '</select>'
+    + '<div class="row"><div><label>Daily calories</label><input id="f_kcal" type="number" inputmode="numeric" min="800" max="6000" value="' + esc(d.kcal_target) + '" /></div><div><label>Daily protein (g)</label><input id="f_protein" type="number" inputmode="numeric" min="0" max="500" value="' + esc(d.protein_target_g) + '" /></div></div>'
+    + '<label>Training split</label><select id="f_split">' + opt([["ppl","Push / Pull / Legs"],["upper_lower","Upper / Lower"],["full_body","Full Body"],["custom","Custom"]], d.training_split) + '</select>'
+    + '<label>Injury / constraint notes</label><textarea id="f_injury" placeholder="Any limits we should train around">' + esc(d.injury_notes) + '</textarea>'
+    + '<button id="f_save" class="btn">Save profile</button>'
+    + '<div class="msg" id="f_msg"></div>'
+    + '</div>';
+  document.getElementById("f_save").addEventListener("click", submit);
+  if (window.__notifySize) window.__notifySize();
+}
+
+function submit() {
+  var btn = document.getElementById("f_save"); var msg = document.getElementById("f_msg"); msg.textContent = "";
+  var args = { name: val("f_name").trim(), height_ft: numOrNull(val("f_ft")), height_in: numOrNull(val("f_in")), weight_lbs: numOrNull(val("f_weight")), goal: val("f_goal"), kcal_target: numOrNull(val("f_kcal")), protein_target_g: numOrNull(val("f_protein")), training_split: val("f_split"), injury_notes: val("f_injury").trim() };
+  Object.keys(args).forEach(function (k) { if (args[k] === null || args[k] === "") delete args[k]; });
+  if (typeof window.__callServerTool !== "function") { msg.textContent = "Not connected to the app host."; return; }
+  btn.disabled = true; btn.textContent = "Saving...";
+  window.__callServerTool("set_profile", args).then(function (ctr) {
+    var saved = (ctr && ctr.structuredContent && ctr.structuredContent.saved) || (ctr && ctr._meta && ctr._meta.render && ctr._meta.render.saved) || args;
+    renderConfirm(saved);
+  }).catch(function (e) { btn.disabled = false; btn.textContent = "Save profile"; msg.textContent = (e && e.message) ? e.message : "Could not save. Try again."; });
+}
+
+function line(k, v) { if (v == null || v === "") return ""; return '<div class="line"><span class="k">' + esc(k) + '</span><span class="v">' + esc(v) + '</span></div>'; }
+
+function renderConfirm(s) {
+  var ht = (s.height_ft != null && s.height_ft !== "") ? (s.height_ft + " ft " + (s.height_in || 0) + " in") : "";
+  var goalMap = { cut: "Cut", maintain: "Maintain", recomp: "Recomp" };
+  var splitMap = { ppl: "Push / Pull / Legs", upper_lower: "Upper / Lower", full_body: "Full Body", custom: "Custom" };
+  root.innerHTML =
+    '<div class="card"><div class="okbox"><h3>Profile saved</h3>'
+    + line("Name", s.name || s.username)
+    + line("Height", ht)
+    + line("Weight", (s.weight_lbs != null && s.weight_lbs !== "" ? s.weight_lbs + " lbs" : ""))
+    + line("Goal", goalMap[s.goal] || s.goal)
+    + line("Calories", (s.kcal_target != null && s.kcal_target !== "" ? s.kcal_target + " kcal" : ""))
+    + line("Protein", (s.protein_target_g != null && s.protein_target_g !== "" ? s.protein_target_g + " g" : ""))
+    + line("Split", splitMap[s.training_split] || s.training_split)
+    + line("Notes", s.injury_notes)
+    + '</div></div>';
+  if (window.__notifySize) window.__notifySize();
+}
+
+window.__onToolResult = function (ctr) {
+  var d = (ctr && (ctr.structuredContent || (ctr._meta && ctr._meta.render))) || null;
+  var prefill = (d && d.prefill) ? d.prefill : null;
+  var merged = {}; for (var k in DEFAULTS) merged[k] = DEFAULTS[k];
+  if (prefill) for (var k2 in prefill) { if (prefill[k2] != null && prefill[k2] !== "") merged[k2] = prefill[k2]; }
+  renderForm(merged);
+};
+
+setTimeout(function () { if (root.textContent.indexOf("Loading") !== -1) renderForm(DEFAULTS); }, 400);
+</script>
+</body>
+</html>`;
