@@ -1078,6 +1078,27 @@ function isSubscribed() {
   return s === 'active' || s === 'trial' || s === 'comped' || s === 'lifetime';
 }
 
+// Manage subscription: subscribers -> Stripe billing portal (web) or App Store (iOS); others -> paywall.
+async function manageSubscription() {
+  const p = state.profile || {};
+  if (!isSubscribed()) { location.hash = '#/paywall'; return; }
+  if (IS_NATIVE) { try { window.open('https://apps.apple.com/account/subscriptions', '_blank'); } catch (_) {} return; }
+  if (p.subscription_source === 'stripe' || p.stripe_customer_id) {
+    try {
+      toast('Opening billing portal…');
+      const { data, error } = await sb.functions.invoke('billing-portal', { body: { return_url: window.location.href } });
+      if (error) throw error;
+      if (data && data.url) { window.location.href = data.url; return; }
+      throw new Error((data && data.error) || 'No portal URL returned');
+    } catch (e) {
+      const msg = (e && e.message) || 'Could not open billing portal';
+      toast(/no_customer/.test(msg) ? 'No billing account on file yet.' : ('Billing portal error: ' + msg), 'error');
+    }
+    return;
+  }
+  toast('Your access is complimentary — nothing to manage here.');
+}
+
 async function initRevenueCat() {
   if (!IS_NATIVE) return;
   try {
@@ -6172,7 +6193,7 @@ function renderProfile() {
           <div style="font-size:.875rem;font-weight:600;">${esc((p.subscription_status === 'lifetime') ? 'Lifetime' : (p.subscription_status === 'active') ? 'Active' : (p.subscription_status === 'comped') ? 'Comped' : (p.subscription_status === 'trial') ? 'Free trial' : 'Free')}</div>
           <div style="font-size:.7rem;color:var(--text-muted);">${esc(p.subscription_source || 'tap to manage')}</div>
         </div>
-        <a href="#/paywall" class="press" style="color:var(--green);font-size:.8125rem;font-weight:600;text-decoration:none;">Manage ›</a>
+        <button id="btnManageSub" class="press" style="color:var(--green);font-size:.8125rem;font-weight:600;background:none;border:0;cursor:pointer;padding:0;font-family:inherit;">Manage ›</button>
       </div>
     </div>
 
@@ -6455,6 +6476,7 @@ function renderProfile() {
   });
 
   $('btnSignOut').addEventListener('click', signOut);
+  { const _mng = document.getElementById('btnManageSub'); if (_mng) _mng.addEventListener('click', manageSubscription); }
 }
 
 /* =========================================================
