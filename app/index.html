@@ -3007,14 +3007,28 @@ function renderLogin() {
     if (!email || password.length < 6) { toast('Email + 6+ char password required.', 'error'); return; }
     btnSignUp.disabled = true; btnSignUp.textContent = 'Creating…';
     try {
-      const { error } = await sb.auth.signUp({
+      const { data, error } = await sb.auth.signUp({
         email, password,
         options: { emailRedirectTo: IS_NATIVE ? 'workout://callback' : (window.location.origin + window.location.pathname) },
       });
       if (error) throw error;
-      toast('Account created.');
+      // Supabase returns a user with an empty identities array when the email is already registered.
+      if (data && data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+        toast('That email already has an account. Please sign in instead.', 'error');
+        setMode('password');
+        return;
+      }
+      if (data && data.session) {
+        toast('Account created.'); // onAuthStateChange loads the app
+      } else {
+        toast('Account created. Check your email to confirm, then sign in.');
+        setMode('password');
+      }
     } catch (e) {
-      toast(e.message || 'Sign up failed', 'error');
+      const msg = (e && e.message) || 'Sign up failed';
+      if (/already|registered|exists/i.test(msg)) { toast('That email already has an account. Please sign in instead.', 'error'); setMode('password'); }
+      else { toast(msg, 'error'); }
+    } finally {
       btnSignUp.disabled = false; btnSignUp.textContent = 'Create account';
     }
   });
