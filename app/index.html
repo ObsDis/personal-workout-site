@@ -1227,7 +1227,7 @@ function renderPaywall() {
   if (!root) return;
   root.innerHTML = `
     <div class="max-w-md mx-auto p-6 pt-12 pb-16">
-      <h1 class="text-3xl font-bold mb-1">Workout Pro</h1>
+      <h1 class="text-3xl font-bold mb-1">BarbellMind</h1>
       <p class="text-zinc-400 mb-6">14-day free trial on subscriptions. Cancel anytime in Settings.</p>
       <div class="space-y-3">
         <button id="btnBuyYearly" class="w-full p-5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-left">
@@ -2853,17 +2853,17 @@ function renderLogin() {
         <div style="background:rgba(52,211,153,.06);border:1px solid rgba(52,211,153,.2);border-radius:14px;padding:.9rem;margin-bottom:1.1rem;">
           <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.09em;color:var(--accent);font-weight:800;margin-bottom:.6rem;">14-day free trial</div>
           <div style="display:flex;gap:.5rem;">
-            <div style="flex:1;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:11px;padding:.6rem .7rem;">
+            <div id="tileMonthly" style="flex:1;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:11px;padding:.6rem .7rem;cursor:pointer;">
               <div style="font-size:.7rem;color:var(--text-muted);">Monthly</div>
               <div style="font-weight:800;font-size:1rem;letter-spacing:-.01em;">$39.99<span style="font-size:.7rem;color:var(--text-muted);font-weight:600;">/mo</span></div>
             </div>
-            <div style="flex:1;background:rgba(52,211,153,.09);border:1px solid rgba(52,211,153,.32);border-radius:11px;padding:.6rem .7rem;">
+            <div id="tileAnnual" style="flex:1;background:rgba(52,211,153,.09);border:1px solid rgba(52,211,153,.32);border-radius:11px;padding:.6rem .7rem;cursor:pointer;">
               <div style="font-size:.7rem;color:var(--accent);font-weight:700;">Annual</div>
               <div style="font-weight:800;font-size:1rem;letter-spacing:-.01em;">$31.99<span style="font-size:.7rem;color:var(--text-muted);font-weight:600;">/mo</span></div>
               <div style="font-size:.63rem;color:var(--text-muted);">$383.88/yr</div>
             </div>
           </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.6rem;padding-top:.55rem;border-top:1px solid var(--border);font-size:.82rem;">
+          <div id="tileLifetime" style="display:flex;justify-content:space-between;align-items:center;margin-top:.6rem;padding-top:.55rem;border-top:1px solid var(--border);font-size:.82rem;cursor:pointer;">
             <span style="color:var(--text-muted);">Lifetime</span>
             <span><strong style="color:#fcd34d;">$999.99</strong> <span style="color:var(--text-muted);font-size:.7rem;">one time</span></span>
           </div>
@@ -2966,6 +2966,19 @@ function renderLogin() {
   };
   if (tabPwdEl) tabPwdEl.addEventListener('click', () => setMode('password'));
   if (tabMagicEl) tabMagicEl.addEventListener('click', () => setMode('magic'));
+  // Plan tiles are a shortcut: pick a plan -> switch to Create Account -> pay on the paywall after signup.
+  const pickPlan = (plan) => {
+    try { localStorage.setItem('_PENDING_PLAN', plan); } catch (_) {}
+    setMode('password');
+    const si = document.getElementById('btnSignIn'); if (si) si.style.display = 'none';
+    const su = document.getElementById('btnSignUp'); if (su) su.style.display = 'block';
+    const em = document.getElementById('emailIn'); if (em) em.focus();
+    toast('Create your account to start the ' + plan + ' plan.');
+  };
+  ['Monthly','Annual','Lifetime'].forEach((p) => {
+    const el = document.getElementById('tile' + p);
+    if (el) el.addEventListener('click', () => pickPlan(p.toLowerCase()));
+  });
 
   const btnSignIn = document.getElementById('btnSignIn');
   if (btnSignIn) btnSignIn.addEventListener('click', async () => {
@@ -3019,7 +3032,8 @@ function renderLogin() {
         return;
       }
       if (data && data.session) {
-        toast('Account created.'); // onAuthStateChange loads the app
+        toast('Account created.');
+        location.hash = '#/paywall'; // send straight to the payment page
       } else {
         toast('Account created. Check your email to confirm, then sign in.');
         setMode('password');
@@ -12778,6 +12792,7 @@ async function progressMeasurementsView() {
    ========================================================= */
 const ROUTES = {
   '#/login':    renderLogin,
+  '#/paywall':  renderPaywall,
   '#/onboard':  renderOnboard,
   '#/':         renderDashboard,
   '':           renderDashboard,
@@ -12869,7 +12884,7 @@ function route() {
   }
   const hash = location.hash || '#/';
   if (!state.session && hash !== '#/login') { location.hash = '#/login'; return; }
-  if (state.session && !state.profile && hash !== '#/onboard') { location.hash = '#/onboard'; return; }
+  if (state.session && !state.profile && hash !== '#/onboard' && hash !== '#/paywall') { location.hash = '#/onboard'; return; }
   // Paywall gate: native iOS enforces the paid experience via Apple IAP.
   // Web is left open during TestFlight; revisit before public App Store launch.
   if (IS_NATIVE && state.session && state.profile && !isSubscribed() && hash !== '#/onboard') {
@@ -12877,6 +12892,8 @@ function route() {
     updateChatBubble && updateChatBubble();
     return;
   }
+  // Web: a subscribed user never needs the paywall page.
+  if (!IS_NATIVE && hash.split('?')[0] === '#/paywall' && isSubscribed()) { location.hash = '#/'; return; }
   const path = hash.split('?')[0];
   const fn = ROUTES[path] || ROUTES[hash] || renderDashboard;
   fn();
