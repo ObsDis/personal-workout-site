@@ -1266,9 +1266,12 @@ function renderPaywall() {
         · <a href="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" target="_blank" class="underline">Terms (EULA)</a>
       </p>
     </div>`;
-  document.getElementById('btnBuyYearly').addEventListener('click', () => purchasePackage('annual'));
-  document.getElementById('btnBuyMonthly').addEventListener('click', () => purchasePackage('monthly'));
-  document.getElementById('btnBuyLifetime').addEventListener('click', purchaseLifetime);
+  const STRIPE_LINKS = { annual: 'https://buy.stripe.com/eVq3cxd7w6XFgiX977bMQ01', monthly: 'https://buy.stripe.com/6oU8wR9VkchZ8Qv4QRbMQ00', lifetime: 'https://buy.stripe.com/28E00lgjIfubgiX3MNbMQ02' };
+  const goStripe = (plan) => { const uid = state.session && state.session.user && state.session.user.id; const ref = uid ? ('?client_reference_id=' + encodeURIComponent(uid)) : ''; window.open(STRIPE_LINKS[plan] + ref, '_blank'); };
+  // iOS must use Apple IAP (RevenueCat); web users pay via Stripe checkout links.
+  document.getElementById('btnBuyYearly').addEventListener('click', () => IS_NATIVE ? purchasePackage('annual') : goStripe('annual'));
+  document.getElementById('btnBuyMonthly').addEventListener('click', () => IS_NATIVE ? purchasePackage('monthly') : goStripe('monthly'));
+  document.getElementById('btnBuyLifetime').addEventListener('click', () => IS_NATIVE ? purchaseLifetime() : goStripe('lifetime'));
   document.getElementById('btnRedeemPromo').addEventListener('click', redeemPromoCode);
   document.getElementById('btnRedeemCode').addEventListener('click', presentCodeRedemption);
   document.getElementById('btnRestore').addEventListener('click', restorePurchases);

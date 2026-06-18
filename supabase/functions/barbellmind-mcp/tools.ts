@@ -755,6 +755,21 @@ export function buildServer(db: SupabaseClient, user: { id: string; email?: stri
     },
   )
 
+  server.registerTool(
+    'start_subscription',
+    { title: 'Subscribe / upgrade', description: 'Return BarbellMind subscription options (Monthly, Annual, Lifetime) as secure Stripe checkout links for the signed-in user. Subscriptions include a 14-day free trial. Use when a free user wants to upgrade or hits a premium feature. Present the links and let the user pick; payment happens on Stripe, never in chat. The links are tagged with the user id so their account unlocks automatically after paying.', inputSchema: {} },
+    async () => {
+      const ref = encodeURIComponent(uid)
+      const tag = (u: string) => u + '?client_reference_id=' + ref
+      const plans = [
+        { plan: 'Monthly', price: '$39.99/mo', trial: '14-day free trial', url: tag('https://buy.stripe.com/6oU8wR9VkchZ8Qv4QRbMQ00') },
+        { plan: 'Annual', price: '$383.88/yr', trial: '14-day free trial', url: tag('https://buy.stripe.com/eVq3cxd7w6XFgiX977bMQ01') },
+        { plan: 'Lifetime', price: '$999.99 one-time', trial: null, url: tag('https://buy.stripe.com/28E00lgjIfubgiX3MNbMQ02') },
+      ]
+      return ok({ message: 'Choose a plan and pay securely on Stripe. Subscriptions start with a 14-day free trial; your account unlocks automatically once payment goes through.', plans })
+    },
+  )
+
   server.registerResource(
     'BarbellMind widget',
     UI_WIDGET,
