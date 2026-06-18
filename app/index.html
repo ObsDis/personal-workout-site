@@ -3018,6 +3018,7 @@ function renderLogin() {
     const email = $('emailIn').value.trim();
     const password = $('pwdIn').value;
     if (!email || password.length < 6) { toast('Email + 6+ char password required.', 'error'); return; }
+    try { localStorage.setItem('_POST_SIGNUP', '1'); } catch (_) {}
     btnSignUp.disabled = true; btnSignUp.textContent = 'Creating…';
     try {
       const { data, error } = await sb.auth.signUp({
@@ -3027,18 +3028,20 @@ function renderLogin() {
       if (error) throw error;
       // Supabase returns a user with an empty identities array when the email is already registered.
       if (data && data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+        try { localStorage.removeItem('_POST_SIGNUP'); } catch (_) {}
         toast('That email already has an account. Please sign in instead.', 'error');
         setMode('password');
         return;
       }
       if (data && data.session) {
-        toast('Account created.');
-        location.hash = '#/paywall'; // send straight to the payment page
+        toast('Account created.'); // SIGNED_IN handler reloads to #/paywall via _POST_SIGNUP
       } else {
+        try { localStorage.removeItem('_POST_SIGNUP'); } catch (_) {}
         toast('Account created. Check your email to confirm, then sign in.');
         setMode('password');
       }
     } catch (e) {
+      try { localStorage.removeItem('_POST_SIGNUP'); } catch (_) {}
       const msg = (e && e.message) || 'Sign up failed';
       if (/already|registered|exists/i.test(msg)) { toast('That email already has an account. Please sign in instead.', 'error'); setMode('password'); }
       else { toast(msg, 'error'); }
@@ -12998,7 +13001,9 @@ async function boot() {
     if ((evt === 'SIGNED_IN' || evt === 'TOKEN_REFRESHED') && sess) {
       if (!state.session) {
         state.session = sess;
-        location.hash = '#/';
+        let _goPaywall = false;
+        try { _goPaywall = (localStorage.getItem('_POST_SIGNUP') === '1'); localStorage.removeItem('_POST_SIGNUP'); } catch (_) {}
+        location.hash = (_goPaywall && !IS_NATIVE) ? '#/paywall' : '#/';
         location.reload();
       } else {
         state.session = sess;
