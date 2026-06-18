@@ -1077,7 +1077,7 @@ const REVENUECAT_IOS_KEY = "appl_tOKPoDNyoESmSKQwLnOIMRkyVBO";
 const ENTITLEMENT_ID = "Liftly Pro";  // matches RevenueCat auto-created entitlement identifier
 const OFFERING_ID = "default";
 const PRODUCT_MONTHLY  = "Liftly_pro_monthly";   // $39.99/mo subscription
-const PRODUCT_YEARLY   = "Liftly_pro_yearly";    // $383.88/yr subscription (displayed as $31.99/mo billed annually)
+const PRODUCT_YEARLY   = "Liftly_pro_yearly";    // $379.99/yr subscription (displayed as $31.67/mo billed annually)
 const PRODUCT_LIFETIME = "Liftly_pro_Lifetime";  // $999.99 non-consumable IAP (note capital L)
 
 function isSubscribed() {
@@ -1262,9 +1262,9 @@ function renderPaywall() {
           <div class="text-xs uppercase tracking-wider opacity-80">Best value · save 20%</div>
           <div class="flex items-baseline justify-between mt-1">
             <span class="text-2xl">Annual</span>
-            <span class="text-2xl">$31.99/mo</span>
+            <span class="text-2xl">$31.67/mo</span>
           </div>
-          <div class="text-xs opacity-80 mt-1">Billed $383.88/yr · 14-day free trial</div>
+          <div class="text-xs opacity-80 mt-1">Billed $379.99/yr · 14-day free trial</div>
         </button>
         <button id="btnBuyMonthly" class="w-full p-5 rounded-2xl bg-zinc-800 hover:bg-zinc-700 text-left">
           <div class="flex items-baseline justify-between">
@@ -2887,8 +2887,8 @@ function renderLogin() {
             </div>
             <div id="tileAnnual" style="flex:1;background:rgba(52,211,153,.09);border:1px solid rgba(52,211,153,.32);border-radius:11px;padding:.6rem .7rem;cursor:pointer;">
               <div style="font-size:.7rem;color:var(--accent);font-weight:700;">Annual</div>
-              <div style="font-weight:800;font-size:1rem;letter-spacing:-.01em;">$31.99<span style="font-size:.7rem;color:var(--text-muted);font-weight:600;">/mo</span></div>
-              <div style="font-size:.63rem;color:var(--text-muted);">$383.88/yr</div>
+              <div style="font-weight:800;font-size:1rem;letter-spacing:-.01em;">$31.67<span style="font-size:.7rem;color:var(--text-muted);font-weight:600;">/mo</span></div>
+              <div style="font-size:.63rem;color:var(--text-muted);">$379.99/yr</div>
             </div>
           </div>
           <div id="tileLifetime" style="display:flex;justify-content:space-between;align-items:center;margin-top:.6rem;padding-top:.55rem;border-top:1px solid var(--border);font-size:.82rem;cursor:pointer;">
