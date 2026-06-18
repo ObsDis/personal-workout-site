@@ -406,6 +406,13 @@
     overscroll-behavior: none;       /* no bounce / pull-to-refresh */
     overflow-x: hidden;
   }
+  /* HARD SCROLL GUARANTEE — the page must always scroll vertically,
+     regardless of PWA/standalone/overscroll/inherited-overflow quirks. */
+  html { overflow-y: auto !important; height: auto !important; max-height: none !important; }
+  body { overflow-y: auto !important; height: auto !important; max-height: none !important;
+         overscroll-behavior-y: auto; -webkit-overflow-scrolling: touch; position: static !important; }
+  #app { overflow: visible !important; height: auto !important; max-height: none !important; }
+  .min-h-screen { overflow: visible !important; }
   /* Allow text selection in inputs and chat messages — for usability */
   input, textarea, [contenteditable], .chat-msg, .selectable, .chat-content {
     -webkit-user-select: text;
@@ -852,7 +859,7 @@
     .bottom-nav a:not(.active) svg { color: var(--text-muted); }
     .bottom-nav a:active { transform:scale(0.92); }
     .top-nav { display:none !important; }
-    main.main-content { padding-bottom:calc(4.6rem + var(--safe-bottom)) !important; }
+    main.main-content { padding-bottom:calc(7rem + var(--safe-bottom)) !important; }
   }
 
 
