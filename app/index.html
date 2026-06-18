@@ -1721,7 +1721,7 @@ async function refreshWidgetNow() {
 
 
 
-const APP_BUILD = '121';
+const APP_BUILD = '122';
 const APP_VERSION = '1.0';
 const appEl = () => document.getElementById('app');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
@@ -2828,87 +2828,89 @@ function renderNotConfigured() {
    ========================================================= */
 function renderLogin() {
   appEl().innerHTML = `
-  <div style="min-height:100vh;padding:1rem;display:flex;align-items:center;justify-content:center;">
-    <div class="card" style="max-width:420px;width:100%;padding:1.5rem;">
-      <div class="text-center" style="margin-bottom:1.25rem;">
-        <div style="width:64px;height:64px;background:linear-gradient(135deg,#10b981,#059669);border-radius:1.125rem;margin:0 auto .75rem;display:flex;align-items:center;justify-content:center;box-shadow:0 0 28px rgba(16,185,129,.35);">
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"><line x1="4" y1="12" x2="20" y2="12"/><rect x="2" y="9" width="4" height="6" rx="1"/><rect x="18" y="9" width="4" height="6" rx="1"/><rect x="6" y="10" width="3" height="4" rx="0.5"/><rect x="15" y="10" width="3" height="4" rx="0.5"/></svg>
+
+  <div style="min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:max(28px,env(safe-area-inset-top)) 18px 44px;background:radial-gradient(120% 55% at 50% -8%, rgba(52,211,153,.13), transparent 60%);">
+    <div style="max-width:404px;width:100%;">
+      <div style="text-align:center;margin:6px 0 18px;">
+        <div style="width:60px;height:60px;border-radius:17px;margin:0 auto 12px;background:linear-gradient(135deg,#34d399,#22d3ee);display:flex;align-items:center;justify-content:center;box-shadow:0 12px 30px rgba(52,211,153,.35);">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#06231b" stroke-width="2.5" stroke-linecap="round"><line x1="4" y1="12" x2="20" y2="12"/><rect x="2" y="9" width="4" height="6" rx="1"/><rect x="18" y="9" width="4" height="6" rx="1"/><rect x="6" y="10" width="3" height="4" rx="0.5"/><rect x="15" y="10" width="3" height="4" rx="0.5"/></svg>
         </div>
-        <div style="font-size:1.75rem;font-weight:800;letter-spacing:-0.03em;">BarbellMind</div>
-        <p style="color:var(--text-muted);font-size:.875rem;margin-top:.25rem;">AI training and macro coach. Built for results.</p>
+        <div style="font-size:1.65rem;font-weight:850;letter-spacing:-0.03em;">BarbellMind</div>
+        <p style="color:var(--text-muted);font-size:.9rem;margin-top:.35rem;">Your AI training and nutrition coach</p>
       </div>
 
-      <!-- Benefits -->
-      <div style="display:flex;flex-direction:column;gap:.4rem;margin:0 0 1rem;font-size:.825rem;">
-        <div style="display:flex;align-items:center;gap:.5rem;color:var(--text);"><span style="color:var(--accent);">✓</span> Custom workout plans, drag-and-drop, PR tracking</div>
-        <div style="display:flex;align-items:center;gap:.5rem;color:var(--text);"><span style="color:var(--accent);">✓</span> AI coach by text or voice, hands-free mid-workout</div>
-        <div style="display:flex;align-items:center;gap:.5rem;color:var(--text);"><span style="color:var(--accent);">✓</span> Barcode + AI photo macros, meal plans, body metrics</div>
-      </div>
-
-      <!-- Pricing tiers (disclosed before signup per Apple Guideline 3.1.2) -->
-      <div style="background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.18);border-radius:.75rem;padding:.875rem;margin-bottom:1rem;">
-        <div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:700;margin-bottom:.5rem;">14-day free trial</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;font-size:.85rem;">
-          <div><span style="color:var(--text-muted);">Monthly</span> <strong style="color:var(--text);">$39.99/mo</strong></div>
-          <div><span style="color:var(--text-muted);">Annual</span> <strong style="color:var(--text);">$31.99/mo</strong> <span style="color:var(--text-muted);font-size:.7rem;">($383.88/yr)</span></div>
-          <div style="grid-column:1/-1;"><span style="color:var(--text-muted);">Lifetime</span> <strong style="color:#fcd34d;">$999.99</strong> <span style="color:var(--text-muted);font-size:.7rem;">one time</span></div>
+      <div class="card" style="padding:1.25rem;border-radius:20px;">
+        <div style="display:flex;flex-direction:column;gap:.6rem;margin-bottom:1.1rem;font-size:.84rem;line-height:1.3;">
+          <div style="display:flex;align-items:center;gap:.6rem;"><span style="width:19px;height:19px;border-radius:6px;background:rgba(52,211,153,.15);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:.72rem;flex:none;">&#10003;</span> Custom workout plans, PR tracking, drag-and-drop</div>
+          <div style="display:flex;align-items:center;gap:.6rem;"><span style="width:19px;height:19px;border-radius:6px;background:rgba(52,211,153,.15);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:.72rem;flex:none;">&#10003;</span> AI coach by text or voice, hands-free mid-workout</div>
+          <div style="display:flex;align-items:center;gap:.6rem;"><span style="width:19px;height:19px;border-radius:6px;background:rgba(52,211,153,.15);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:.72rem;flex:none;">&#10003;</span> Barcode and AI photo macros, meal plans, body metrics</div>
         </div>
-        <div style="font-size:.7rem;color:var(--text-muted);margin-top:.5rem;line-height:1.4;">Subscriptions auto-renew unless cancelled 24h before trial ends. Lifetime is one-time, no recurring charges. Manage in App Store Settings.</div>
-      </div>
 
-      <!-- OAuth providers (Apple Sign-In is required by Apple if any other social login is offered) -->
-      <button id="btnSignInApple" style="width:100%;padding:.7rem;border-radius:.625rem;background:#000;color:#fff;border:1px solid #2a2a2a;font-weight:600;font-size:.95rem;display:flex;align-items:center;justify-content:center;gap:.5rem;margin-bottom:.5rem;cursor:pointer;">
-        <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M11.182.008C11.148-.03 9.923.023 8.857 1.18c-1.066 1.156-.902 2.482-.878 2.516.024.034 1.52.087 2.475-1.258.955-1.345.762-2.391.728-2.43Zm3.314 11.733c-.048-.096-2.325-1.234-2.113-3.422.212-2.189 1.675-2.789 1.698-2.854.023-.065-.597-.79-1.254-1.157a3.692 3.692 0 0 0-1.563-.434c-.108-.003-.483-.095-1.254.116-.508.139-1.653.589-1.968.607-.316.018-1.256-.522-2.267-.665-.647-.125-1.333.131-1.824.328-.49.196-1.422.754-2.074 2.237-.652 1.482-.311 3.83-.067 4.56.244.729.625 1.924 1.273 2.796.576.984 1.34 1.667 1.659 1.899.319.232 1.219.386 1.843.067.502-.308 1.408-.485 1.766-.472.357.013 1.061.154 1.782.539.571.197 1.111.115 1.652-.105.541-.221 1.324-1.059 2.238-2.758.347-.79.505-1.217.473-1.282Z"/></svg>
-        Sign in with Apple
-      </button>
-      <button id="btnSignInGoogle" style="width:100%;padding:.7rem;border-radius:.625rem;background:#fff;color:#1f1f1f;border:1px solid #dadce0;font-weight:600;font-size:.95rem;display:flex;align-items:center;justify-content:center;gap:.5rem;margin-bottom:.75rem;cursor:pointer;">
-        <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09Z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23Z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09 0-.73.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62Z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53Z"/></svg>
-        Sign in with Google
-      </button>
-      <div style="display:flex;align-items:center;gap:.5rem;margin:0 0 .75rem;">
-        <div style="flex:1;height:1px;background:var(--border);"></div>
-        <span style="font-size:.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;">or with email</span>
-        <div style="flex:1;height:1px;background:var(--border);"></div>
-      </div>
+        <div style="background:rgba(52,211,153,.06);border:1px solid rgba(52,211,153,.2);border-radius:14px;padding:.9rem;margin-bottom:1.1rem;">
+          <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.09em;color:var(--accent);font-weight:800;margin-bottom:.6rem;">14-day free trial</div>
+          <div style="display:flex;gap:.5rem;">
+            <div style="flex:1;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:11px;padding:.6rem .7rem;">
+              <div style="font-size:.7rem;color:var(--text-muted);">Monthly</div>
+              <div style="font-weight:800;font-size:1rem;letter-spacing:-.01em;">$39.99<span style="font-size:.7rem;color:var(--text-muted);font-weight:600;">/mo</span></div>
+            </div>
+            <div style="flex:1;background:rgba(52,211,153,.09);border:1px solid rgba(52,211,153,.32);border-radius:11px;padding:.6rem .7rem;">
+              <div style="font-size:.7rem;color:var(--accent);font-weight:700;">Annual</div>
+              <div style="font-weight:800;font-size:1rem;letter-spacing:-.01em;">$31.99<span style="font-size:.7rem;color:var(--text-muted);font-weight:600;">/mo</span></div>
+              <div style="font-size:.63rem;color:var(--text-muted);">$383.88/yr</div>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.6rem;padding-top:.55rem;border-top:1px solid var(--border);font-size:.82rem;">
+            <span style="color:var(--text-muted);">Lifetime</span>
+            <span><strong style="color:#fcd34d;">$999.99</strong> <span style="color:var(--text-muted);font-size:.7rem;">one time</span></span>
+          </div>
+          <div style="font-size:.66rem;color:var(--text-muted);margin-top:.6rem;line-height:1.45;">Subscriptions auto-renew unless cancelled 24h before the trial ends. Lifetime is one-time, no recurring charges. Manage in App Store Settings.</div>
+        </div>
 
-      <!-- Auth: email+password (Apple-friendly) with magic-link fallback -->
-      <div style="display:flex;gap:.4rem;margin-bottom:.75rem;">
-        <button id="tabPwd"   style="flex:1;padding:.5rem;border-radius:.5rem;border:1px solid var(--accent);background:transparent;color:var(--text);font-weight:600;font-size:.825rem;cursor:pointer;">Password</button>
-        <button id="tabMagic" style="flex:1;padding:.5rem;border-radius:.5rem;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-weight:600;font-size:.825rem;cursor:pointer;">Magic link</button>
-      </div>
+        <button id="btnSignInApple" style="width:100%;padding:.75rem;border-radius:12px;background:#000;color:#fff;border:1px solid #2a2a2a;font-weight:600;font-size:.95rem;display:flex;align-items:center;justify-content:center;gap:.5rem;margin-bottom:.55rem;cursor:pointer;">
+          <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M11.182.008C11.148-.03 9.923.023 8.857 1.18c-1.066 1.156-.902 2.482-.878 2.516.024.034 1.52.087 2.475-1.258.955-1.345.762-2.391.728-2.43Zm3.314 11.733c-.048-.096-2.325-1.234-2.113-3.422.212-2.189 1.675-2.789 1.698-2.854.023-.065-.597-.79-1.254-1.157a3.692 3.692 0 0 0-1.563-.434c-.108-.003-.483-.095-1.254.116-.508.139-1.653.589-1.968.607-.316.018-1.256-.522-2.267-.665-.647-.125-1.333.131-1.824.328-.49.196-1.422.754-2.074 2.237-.652 1.482-.311 3.83-.067 4.56.244.729.625 1.924 1.273 2.796.576.984 1.34 1.667 1.659 1.899.319.232 1.219.386 1.843.067.502-.308 1.408-.485 1.766-.472.357.013 1.061.154 1.782.539.571.197 1.111.115 1.652-.105.541-.221 1.324-1.059 2.238-2.758.347-.79.505-1.217.473-1.282Z"/></svg>
+          Sign in with Apple
+        </button>
+        <button id="btnSignInGoogle" style="width:100%;padding:.75rem;border-radius:12px;background:#fff;color:#1f1f1f;border:1px solid #dadce0;font-weight:600;font-size:.95rem;display:flex;align-items:center;justify-content:center;gap:.5rem;margin-bottom:.85rem;cursor:pointer;">
+          <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09Z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23Z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09 0-.73.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62Z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53Z"/></svg>
+          Sign in with Google
+        </button>
 
-      <div>
+        <div style="display:flex;align-items:center;gap:.6rem;margin:0 0 .85rem;">
+          <div style="flex:1;height:1px;background:var(--border);"></div>
+          <span style="font-size:.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.09em;">or with email</span>
+          <div style="flex:1;height:1px;background:var(--border);"></div>
+        </div>
+
+        <div style="display:flex;gap:.4rem;margin-bottom:.85rem;">
+          <button id="tabPwd" style="flex:1;padding:.55rem;border-radius:10px;border:1px solid var(--accent);background:transparent;color:var(--text);font-weight:700;font-size:.825rem;cursor:pointer;">Password</button>
+          <button id="tabMagic" style="flex:1;padding:.55rem;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-weight:700;font-size:.825rem;cursor:pointer;">Magic link</button>
+        </div>
+
         <label class="label">Email</label>
         <input id="emailIn" type="email" class="input" placeholder="you@example.com" autocomplete="email" />
-        <input id="pwdIn"   type="password" class="input mt-2" placeholder="Password (6+ chars)" autocomplete="current-password" />
+        <input id="pwdIn" type="password" class="input mt-2" placeholder="Password (6+ chars)" autocomplete="current-password" />
         <button id="btnSignIn" class="btn btn-primary w-full mt-3">Sign in</button>
         <button id="btnSignUp" class="btn btn-primary w-full mt-3" style="display:none;">Create account</button>
-        <button id="btnMagic"  class="btn btn-ghost   w-full mt-3" style="display:none;">Send magic link</button>
-        <div style="display:flex;justify-content:space-between;font-size:.75rem;margin-top:.5rem;">
-          <a href="#" id="lnkSignup" style="color:var(--accent);">New here? Create account</a>
-          <button id="btnReset" style="background:none;border:0;color:var(--text-muted);font-size:.75rem;cursor:pointer;padding:0;">Forgot password</button>
+        <button id="btnMagic" class="btn btn-ghost w-full mt-3" style="display:none;">Send magic link</button>
+        <div style="display:flex;justify-content:space-between;font-size:.78rem;margin-top:.6rem;">
+          <a href="#" id="lnkSignup" style="color:var(--accent);font-weight:600;">New here? Create account</a>
+          <button id="btnReset" style="background:none;border:0;color:var(--text-muted);font-size:.78rem;cursor:pointer;padding:0;">Forgot password</button>
         </div>
         <p id="magicMsg" class="text-xs text-zinc-500 mt-3 hidden"></p>
 
-        <details style="margin-top:.875rem;border-top:1px solid var(--border);padding-top:.625rem;">
-          <summary style="cursor:pointer;color:var(--accent);font-size:.8125rem;font-weight:600;list-style:none;-webkit-tap-highlight-color:transparent;">
-            Have a promo code?
-          </summary>
-          <div style="margin-top:.5rem;">
+        <details style="margin-top:.9rem;border-top:1px solid var(--border);padding-top:.7rem;">
+          <summary style="cursor:pointer;color:var(--accent);font-size:.8125rem;font-weight:600;list-style:none;-webkit-tap-highlight-color:transparent;">Have a promo code?</summary>
+          <div style="margin-top:.55rem;">
             <input id="loginPromoIn" class="input" placeholder="e.g. BETA-30" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;" />
-            <p style="font-size:.7rem;color:var(--text-muted);margin-top:.375rem;line-height:1.4;">
-              We\'ll redeem this automatically the moment you sign in. Lifetime and trial codes are both supported.
-            </p>
+            <p style="font-size:.7rem;color:var(--text-muted);margin-top:.4rem;line-height:1.4;">We'll redeem this automatically the moment you sign in. Lifetime and trial codes are both supported.</p>
           </div>
         </details>
       </div>
 
-      <p class="text-xs text-zinc-500 mt-4 text-center" style="line-height:1.5;">
-        By signing up you agree to our <a href="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" target="_blank" style="color:var(--text-muted);text-decoration:underline;">Terms (EULA)</a> and
-        <a href="https://github.com/ObsDis/personal-workout-site/blob/main/PRIVACY_POLICY.md" target="_blank" style="color:var(--text-muted);text-decoration:underline;">Privacy Policy</a>.
-      </p>
+      <p class="text-xs text-zinc-500 mt-4 text-center" style="line-height:1.5;">By signing up you agree to our <a href="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" target="_blank" style="color:var(--text-muted);text-decoration:underline;">Terms (EULA)</a> and <a href="https://github.com/ObsDis/personal-workout-site/blob/main/PRIVACY_POLICY.md" target="_blank" style="color:var(--text-muted);text-decoration:underline;">Privacy Policy</a>.</p>
     </div>
-  </div>`;
+  </div>
+  `;
   // OAuth handlers (Apple, Google) — Supabase routes to provider, returns via deep link.
   // Native iOS: redirect to workout://callback (deep-link handler in boot picks up tokens).
   // Web: redirect back to web origin.
@@ -9701,12 +9703,67 @@ async function qDeleteMealPlan(id) {
 
 const round1 = (n) => n == null || isNaN(n) ? null : Math.round(Number(n) * 10) / 10;
 
-async function lookupBarcode(barcode) {
+// Look up a scanned barcode in USDA branded foods (keyed, fast, US-centric).
+// Returns a food object or null. Never throws so the caller can fall through.
+async function lookupBarcodeUSDA(barcode) {
+  const key = getUSDAKey();
+  const url = `https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${encodeURIComponent(key)}&query=${encodeURIComponent(barcode)}&pageSize=5&dataType=Branded`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    const r = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (!r.ok) return null;
+    const data = await r.json();
+    const foods = data.foods || [];
+    if (!foods.length) return null;
+    // Prefer an exact UPC/GTIN match; USDA pads codes with leading zeros.
+    const digits = String(barcode).replace(/^0+/, '');
+    const f = foods.find(x => {
+      const g = String(x.gtinUpc || '').replace(/^0+/, '');
+      return g && (g === digits || x.gtinUpc === barcode);
+    }) || foods[0];
+    if (!f) return null;
+    const nut = (food, names) => {
+      for (const n of (food.foodNutrients || [])) {
+        const nm = (n.nutrientName || n.name || '').toLowerCase();
+        if (names.some(needle => nm.includes(needle))) return Number(n.value) || 0;
+      }
+      return 0;
+    };
+    const serving = Number(f.servingSize) || 100;
+    const unit = (f.servingSizeUnit || 'g').toLowerCase();
+    const isG = unit === 'g' || unit === 'gm';
+    const factor = (isG ? serving : 100) / 100;
+    return {
+      food_name: f.description || f.brandName || 'Unknown',
+      brand: f.brandOwner || f.brandName || null,
+      serving_size_g: isG ? serving : 100,
+      calories: round1(nut(f, ['energy', 'kcal']) * factor),
+      protein_g: round1(nut(f, ['protein']) * factor),
+      carbs_g:   round1(nut(f, ['carbohydrate']) * factor),
+      fat_g:     round1(nut(f, ['total lipid', 'fat,']) * factor),
+      fiber_g:   round1(nut(f, ['fiber']) * factor),
+      barcode,
+      source: 'usda',
+    };
+  } catch (_) {
+    clearTimeout(timeout);
+    return null;
+  }
+}
+
+// Look up a scanned barcode in OpenFoodFacts. Returns a food object or null.
+// OFF's v2 API returns HTTP 404 for unknown barcodes; we treat that as a soft
+// miss (return null) rather than throwing, so the caller can fall through.
+async function lookupBarcodeOFF(barcode) {
   const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json`;
-  const r = await fetch(url);
-  if (!r.ok) throw new Error('OpenFoodFacts: HTTP ' + r.status);
-  const data = await r.json();
-  if (data.status !== 1 && !data.product) throw new Error('Product not found in OpenFoodFacts');
+  let r;
+  try { r = await fetch(url); } catch (_) { return null; }
+  if (!r.ok) return null;                       // 404 (unknown) or any other failure
+  let data;
+  try { data = await r.json(); } catch (_) { return null; }
+  if (data.status !== 1 && !data.product) return null;
   const p = data.product || {};
   const nut = p.nutriments || {};
   const serving = Number(p.serving_quantity) || 100;
@@ -9723,6 +9780,16 @@ async function lookupBarcode(barcode) {
     barcode,
     source: 'openfoodfacts',
   };
+}
+
+// Multi-source barcode lookup: USDA branded foods first, then OpenFoodFacts.
+// Returns null on a true miss so the caller can offer manual entry instead of
+// dead-ending on an HTTP error.
+async function lookupBarcode(barcode) {
+  let food = null;
+  try { food = await lookupBarcodeUSDA(barcode); } catch (_) {}
+  if (!food) { try { food = await lookupBarcodeOFF(barcode); } catch (_) {} }
+  return food;
 }
 async function searchFoodOFF(query, limit = 10) {
   // OpenFoodFacts can hang for 20+ seconds. Abort after 4s and let the caller fall back.
@@ -10992,8 +11059,15 @@ async function quickAddBarcode() {
   try {
     const code = await scanBarcodeFromVideoUnified();
     if (!code) return;
-    const food = await lookupBarcode(code);
-    if (!food) { toast('No match for ' + code, 'error'); return; }
+    let food = await lookupBarcode(code);
+    if (!food) {
+      // Not in USDA or OpenFoodFacts. Let the user log it by hand with the code
+      // attached instead of dead-ending on an error.
+      toast('No database match for ' + code + ' \u2014 add it manually');
+      food = { food_name: '', brand: null, serving_size_g: 100, calories: null,
+               protein_g: null, carbs_g: null, fat_g: null, fiber_g: null,
+               barcode: code, source: 'manual' };
+    }
     const saved = await quickAddSheet(food);
     if (saved) renderNutrition();
   } catch (e) {
