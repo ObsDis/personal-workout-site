@@ -691,21 +691,22 @@ export function buildServer(db: SupabaseClient, user: { id: string; email?: stri
   // ---------- ONBOARDING (MCP App: interactive inline form) ----------
   server.registerTool(
     'start_onboarding',
-    { title: 'Onboarding form', description: 'Open an interactive onboarding form (rendered inline as an MCP App) for a user to set their profile: name, height, current weight, goal (cut/maintain/recomp), daily calorie and protein targets, training split, and injury/constraint notes. Fields are pre-filled with the user\'s current values or sensible defaults. On submit the form writes via set_profile and then stands up a default active training plan from the chosen split (via setup_default_plan, non-destructive) so a brand-new user lands ready to train, then shows a confirmation. Use this when the user wants a form-based setup instead of a chat back-and-forth.', inputSchema: {}, _meta: { ui: { resourceUri: ONBOARD_WIDGET } } },
+    { title: 'Onboarding form', description: 'Open the guided onboarding experience, an interactive inline card (MCP App) that walks a new user through their basics and goal, an interactive macro setter (live ring, steppers, and a goal-based suggest), and a training-split picker with a week and exercise preview. On finish it saves via set_profile, set_macro_targets, and setup_default_plan and shows a confirmation. IMPORTANT: just render this and reply with at most ONE short sentence (e.g. \'Here is your setup.\'). Do NOT explain the fields or restate the steps in chat, the card is self-explanatory and a wall of text defeats the point. The user can tap through the card OR tell you their numbers in chat, in which case call set_macro_targets / set_profile / setup_default_plan directly.', inputSchema: {}, _meta: { ui: { resourceUri: ONBOARD_WIDGET } } },
     async () => {
-      const { data: p } = await db.from('profiles').select('username,height_ft,height_in,weight_lbs,goal,kcal_target,protein_target_g,training_split,injury_notes').eq('id', uid).maybeSingle()
+      const { data: p } = await db.from('profiles').select('username,height_ft,height_in,weight_lbs,goal,kcal_target,protein_target_g,carbs_target_g,fat_target_g,training_split').eq('id', uid).maybeSingle()
       const prefill = {
         name: p?.username ?? '',
         height_ft: p?.height_ft ?? '',
         height_in: p?.height_in ?? '',
         weight_lbs: p?.weight_lbs ?? '',
         goal: p?.goal ?? 'maintain',
-        kcal_target: p?.kcal_target ?? 2500,
-        protein_target_g: p?.protein_target_g ?? 300,
-        training_split: p?.training_split ?? 'ppl',
-        injury_notes: p?.injury_notes ?? 'Lower-back limits, avoid heavy axial loading',
+        kcal: p?.kcal_target ?? 2200,
+        protein: p?.protein_target_g ?? 170,
+        carbs: p?.carbs_target_g ?? 230,
+        fat: p?.fat_target_g ?? 65,
+        split: p?.training_split ?? 'ppl',
       }
-      return uiOk('Opening the onboarding form. Fill it in and tap Save profile.', { kind: 'onboard', prefill })
+      return uiOk('Here is your setup.', { kind: 'onboard', prefill })
     },
   )
 
