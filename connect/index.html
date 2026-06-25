@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Connect to Claude or ChatGPT — BarbellMind</title>
+<meta name="description" content="Connect your BarbellMind account to Claude or ChatGPT and run your training by chatting. Step by step setup and the connection URL." />
+<meta property="og:title" content="Connect BarbellMind to Claude or ChatGPT" />
+<meta property="og:description" content="Connect your BarbellMind account to Claude or ChatGPT and run your training by chatting." />
+<meta property="og:image" content="/AppIcon-1024.png" />
+<link rel="icon" href="/AppIcon-1024.png" />
+<link rel="stylesheet" href="/site.css" />
+</head>
+<body>
+<div id="site-nav"></div>
+
+<section class="page-hero"><div class="wrap">
+  <span class="eyebrow">Connect</span>
+  <h1>Run BarbellMind from <span class="grad">Claude or ChatGPT</span></h1>
+  <p>Connect your account once, then log meals and workouts, set targets, edit your plan, and check progress just by asking. It is scoped to your data only.</p>
+</div></section>
+
+<section class="band"><div class="narrow">
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:18px;padding:22px">
+    <div style="font-weight:800;font-size:15px;margin-bottom:6px">Your connection URL</div>
+    <p style="color:var(--text-2);font-size:14px;margin:0 0 14px">Add this as a custom connector in Claude or ChatGPT. You will sign in with your BarbellMind account and approve access. The connector never sees your password and can only read and write your own data.</p>
+    <div style="display:flex;align-items:center;gap:10px;background:#0c0c0e;border:1px solid var(--border);border-radius:12px;padding:12px 14px">
+      <code id="mcpUrl" style="flex:1;color:var(--green);font-size:13.5px;word-break:break-all;font-family:ui-monospace,Menlo,Consolas,monospace">https://ssgwydumjovvjjusayeq.supabase.co/functions/v1/barbellmind-mcp/mcp</code>
+      <button id="copyUrl" class="btn btn-ghost" style="padding:9px 16px;font-size:13px;white-space:nowrap">Copy</button>
+    </div>
+    <p style="color:var(--muted);font-size:12.5px;margin:12px 0 0">You need a BarbellMind account. <a href="/login/" style="color:var(--green);text-decoration:underline">Sign in or create one</a> first.</p>
+  </div>
+</div></section>
+
+<section class="band"><div class="wrap">
+  <div class="seclead"><span class="eyebrow">Claude</span><h2>Connect in Claude</h2><p>Web or desktop.</p></div>
+  <div class="grid">
+    <div class="feat"><div class="ic" style="background:rgba(52,211,153,.14);color:var(--green)">1</div><h3>Open connectors</h3><p>Go to Settings, then Connectors, then Add custom connector.</p></div>
+    <div class="feat"><div class="ic" style="background:rgba(96,165,250,.14);color:var(--blue)">2</div><h3>Paste the URL</h3><p>Paste the connection URL above and continue. Claude finds the BarbellMind sign in automatically.</p></div>
+    <div class="feat"><div class="ic" style="background:rgba(167,139,250,.14);color:var(--purple)">3</div><h3>Sign in and approve</h3><p>Sign in with your BarbellMind account on the consent screen and approve. The tools appear in your chat.</p></div>
+  </div>
+</div></section>
+
+<section class="band"><div class="wrap">
+  <div class="seclead"><span class="eyebrow">ChatGPT</span><h2>Connect in ChatGPT</h2><p>Developer Mode is available on Plus, Pro, Business, Enterprise, and Edu plans.</p></div>
+  <div class="grid">
+    <div class="feat"><div class="ic" style="background:rgba(52,211,153,.14);color:var(--green)">1</div><h3>Turn on Developer Mode</h3><p>Go to Settings, then Connectors, then Advanced, and switch on Developer mode.</p></div>
+    <div class="feat"><div class="ic" style="background:rgba(96,165,250,.14);color:var(--blue)">2</div><h3>Add the connector</h3><p>Add a custom connector and paste the same connection URL above.</p></div>
+    <div class="feat"><div class="ic" style="background:rgba(167,139,250,.14);color:var(--purple)">3</div><h3>Sign in and approve</h3><p>Sign in and approve access. ChatGPT stays connected with secure tokens, so you only do this once.</p></div>
+  </div>
+</div></section>
+
+<section class="band"><div class="narrow">
+  <div class="seclead" style="margin-bottom:22px"><span class="eyebrow">Capabilities</span><h2>What it can do</h2><p>Everything runs as you, on your own account.</p></div>
+  <div class="grid">
+    <div class="feat">
+      <div class="ic" style="background:rgba(96,165,250,.14);color:var(--blue)">&#128065;</div>
+      <h3>Read</h3>
+      <p style="margin-top:10px">Your profile, today's summary, your workout plan, recent workouts, personal records, nutrition and macros, Apple Health metrics, and body weight.</p>
+    </div>
+    <div class="feat">
+      <div class="ic" style="background:rgba(167,139,250,.14);color:var(--purple)">&#128200;</div>
+      <h3>Analyze</h3>
+      <p style="margin-top:10px">Spot trends in your training and nutrition, review progress over time, compare against your targets, and get suggestions on what to change next.</p>
+    </div>
+    <div class="feat">
+      <div class="ic" style="background:rgba(52,211,153,.14);color:var(--green)">&#9999;</div>
+      <h3>Write</h3>
+      <p style="margin-top:10px">Log food, log a workout, log body weight, set your macro targets, and add an exercise to your plan.</p>
+    </div>
+  </div>
+  <p style="text-align:center;color:var(--muted);font-size:13px;margin-top:18px">Anything you do from chat shows up in the app, with the full dashboard, charts, and widgets.</p>
+</div></section>
+
+<section class="final"><div class="wrap">
+  <h2>Your coach, in your chat</h2>
+  <p style="color:var(--text-2);margin:14px auto 26px;max-width:520px">Connect once and train by asking. Need an account first?</p>
+  <a class="btn btn-primary" href="/login/">Sign in or create an account</a>
+</div></section>
+
+<div id="site-footer"></div>
+<script src="/site.js"></script>
+<script>
+(function(){
+  var btn=document.getElementById("copyUrl");
+  if(!btn) return;
+  btn.addEventListener("click",function(){
+    var url=document.getElementById("mcpUrl").textContent.trim();
+    var done=function(){ var t=btn.textContent; btn.textContent="Copied"; setTimeout(function(){ btn.textContent=t; },1600); };
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(done).catch(done); }
+    else {
+      var r=document.createRange(); r.selectNode(document.getElementById("mcpUrl"));
+      var s=window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      try{ document.execCommand("copy"); }catch(e){}
+      s.removeAllRanges(); done();
+    }
+  });
+})();
+</script>
+</body>
+</html>
